@@ -3,25 +3,198 @@ title: "SOCIOL722 Week1"
 author: "Shuyi Qiu"
 format: html
 editor: visual
+embed-resources: true
+mainfont: Optima
+highlight-style: github
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+# Exercise 1.1
 
 ```{r}
-1 + 1
+data(mtcars)
+typeof(mtcars)
+class(mtcars)
 ```
 
-You can add options to executable code like this
+`typeof(mtcars)` returns the type of `mtcars` . As a data frame, it is actually a list of vectors with the same length.
+
+`class(mtcars)` returns the class of `mtcars`, which is a data frame.
 
 ```{r}
-#| echo: false
-2 * 2
+nrow(mtcars)
+ncol(mtcars)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+`nrow()` returns the number of rows in the data frame `mtcars` .
+
+`ncol()` returns the number of columns in the data frame.
+
+```{r}
+length(mtcars)
+dim(mtcars)
+```
+
+`length()` returns the count of all elements in the data structure. In this scenario with a data frame as the input, it returns the number of vectors (columns) in the data frame.
+
+`dim()` returns the dimension of the data structure. Here it returns the number of rows and columns of the data frame `mtcars`
+
+```{r}
+rownames(mtcars)
+colnames(mtcars)
+```
+
+`rownames()` returns the name of rows in the data frame. Here it returns the name of car models in `mtcars`
+
+`colnames()` returns the name of columns in the data frame. Here it returns the attributes of cars in `mtcars`
+
+# Exercise 1.2
+
+```{r}
+#| error: TRUE
+T <- 123
+TRUE <- 123
+```
+
+Both return error saying that `T` or `TRUE` on the left-hand side is invalid to assign values.
+
+# Exercise 1.3
+
+```{r}
+lgl <- c(TRUE, FALSE, NA)
+int <- c(1L, 6L, NA, 10L)
+dbl <- c(1, NA, 2.5, 4.5)
+chr <- c(NA, "these are","some strings")
+typeof(lgl)
+typeof(int)
+typeof(dbl)
+typeof(chr)
+```
+
+The vectors `lgl`, `int`, `dbl`, `chr` are all homogeneous with only element of one type in them.
+
+```{r}
+str(c(TRUE,"chr"))
+```
+
+Here, the logical value of `TRUE` is turned into a character value `"TRUE"` when it coerced with `"chr"`
+
+```{r}
+str(c(1, FALSE))
+str(c("a",1))
+str(c(TRUE, 1L))
+```
+
+The vector `c(1, FALSE)` turned into a numeric vector, as the logical value `FALSE` turned into a numeric value of 0.
+
+The vector `c("a", 1)` turned into a character vector. `1` in the original vector was transformed as a character in the coercion, because character `"a"` could not be transformed to numeric value instead.
+
+The vector `c(TRUE, 1L)` turned into an integer vector. The logical value `TRUE` was transformed as an integer 1L
+
+# Exercise 1.4
+
+```{r}
+as.integer(TRUE)
+as.integer(FALSE)
+```
+
+Applying explicit coercion on logical value `TRUE` and `FALSE`, they are coerced to integer values 1 and 0.
+
+# Exercise 1.5
+
+```{r}
+x <- sample(c(TRUE,FALSE), size = 75, replace = TRUE) # Random sample 75 T/F values into a vector x
+str(x)
+sum(x)
+mean(x)
+sum(x)/length(x)
+```
+
+# Exercise 1.6
+
+```{r}
+identical(mtcars["mpg"], mtcars$mpg)
+identical(mtcars[["mpg"]], mtcars$mpg)
+class(mtcars$mpg)
+class(mtcars["mpg"])
+class(mtcars[["mpg"]])
+```
+
+The second `identical()` test gives a `TRUE` value. `mtcars$mpg` subset the column `mpg` from the data frame `mtcars` as a numeric vector, so as `mtcars[["mpg"]]`. However, `mtcars["mpg"]` subset it as a data frame with a structure of 32 obs.\*1 variable.
+
+# Exercise 1.7
+
+```{r}
+letters[17]
+letters[seq(2,26,2)]
+letters[8:12]
+```
+
+```{r}
+#| error: TRUE
+letter[[17]]
+letters[[seq(2,26,2)]]
+letters[[8:12]]
+```
+
+If use `[[`, it will report errors.
+
+# Exercise 1.8
+
+`is.na()` is giving a vector of logical values indicating whether each element in the vector is an `NA` value or not.
+
+```{r}
+letters[18] <- NA
+letters
+```
+
+# Exercise 1.9
+
+```{r}
+mtcars[mtcars$cyl == 4, ]
+```
+
+```{r}
+mtcars[mtcars$mpg > 23, ]
+```
+
+# Exercise 1.10
+
+```{r}
+#| error: true
+install.packages("palmerpenguins")
+#library(tidyverse)
+#library(palmerpenguins)
+table(year)
+find("year")
+```
+
+```{r}
+#| error: true
+library(tidyverse)
+library(palmerpenguins)
+table(year)
+find("year")
+class(lubridate::year)
+```
+
+```{r}
+table(penguins$year)
+```
+
+When the package `tidyverse` and `palmerpenguins` have not been loaded, the first error is reported because there is no such object called "year". When I use `find("year")` to find the environment that this object could be in, it shows that it is just a character value.
+
+When the package `tidyverse` and `palmerpenguins` are loaded, the second error shows that `unique()` function that has to be run in `table()` function could only be applied to vectors. When I used `find()` again, it shows that object `year` is in the package `lubridate`, which is loaded when the `tidyverse` package is loaded. Using `class()` to examine the class of the object `year` in the `lubridate` package, it shows that `lubridate::year` is a function. That is why `table()` function could not be applied to it.
+
+# Exercise 1.11
+
+```{r}
+penguins |>
+  slice(seq(3, nrow(penguins), 3))
+```
+
+# Exercise 1.12
+
+```{r}
+penguins |>
+  filter(species == "Gentoo" & island == "Biscoe" & body_mass_g >= 5000 & body_mass_g <= 5500)
+```
