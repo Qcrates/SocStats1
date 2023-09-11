@@ -217,12 +217,24 @@ library(ggplot2)
       group_by(carrier) |> 
       slice_max(dep_delay, n = 1)
 
-    flights |> 
-      group_by(carrier) |> 
+    A <- flights |>
       slice_max(dep_delay, n = -1)
+
+    B <- flights |> 
+      arrange(desc(dep_delay))
+
+    identical(A, B)
+
+    C <- flights |>
+      slice_min(dep_delay, n = -1)
+
+    D <- flights |> 
+      arrange(dep_delay)
+
+    identical(C, D)
     ```
 
-    If I pass a negative number to the `n` option in `slice_min()`, it will arrange the data frame by carrier and give the whole arranged data frame as the output.
+    If I pass a negative number to the `n` option in `slice_min()` or `slice_max()` it will arrange the data frame in ascending order or descending order and give the whole arranged data frame as the output.
 
 5.  `count()`
 
