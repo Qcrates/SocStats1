@@ -124,7 +124,7 @@ library(ggplot2)
 
     ```{r}
     variables <- c("year", "month", "day", "dep_delay", "arr_delay")
-    flights |> select(any_of(variables))
+    flights |> select(any_of(variables)) # Only accept variable list as a vector
     ```
 
     `any_of()` subset any variables from the data frame which contains the

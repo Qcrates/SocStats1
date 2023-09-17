@@ -1,0 +1,249 @@
+---
+title: "HW3_syQiu"
+author: "Shuyi Qiu"
+format: html
+editor: visual
+embed-resources: true
+---
+
+Load packages and dataset
+
+```{r}
+# | echo: false
+library(tidyverse)
+library(ggplot2)
+
+data("faithful")
+```
+
+# 3.1.1 Introduction
+
+## 3.1.1.1 alpha, shape
+
+```{r}
+ggplot(faithful) + 
+  geom_point(aes(x = eruptions, y = waiting),
+             alpha = 0.7,
+             shape = 15,
+             size = 2)
+```
+
+## 3.1.1.2 aes(color, fill)
+
+```{r}
+ggplot(faithful) +
+  geom_histogram(aes(x = eruptions, color = eruptions <= 3.2, fill = eruptions <= 3.2))
+```
+
+## 3.1.1.3 geom_abline()
+
+```{r}
+ggplot(faithful) +
+  geom_point(aes(x = eruptions, y = waiting)) + 
+  geom_abline(slope = -20, intercept = 125)
+```
+
+# 3.1.2 The Statistics Layer
+
+```{r}
+data("mpg")
+
+mpg_counted <- mpg |> 
+  group_by(class) |> 
+  summarise(count = n())
+
+mpg_counted |> 
+  ggplot(aes(x = class, y = count)) +
+  geom_bar(stat = "identity")
+
+ggplot(mpg_counted) +
+  geom_col(aes(x = class, y = count))
+```
+
+# 3.1.3 Scales
+
+## 3.1.3.1 Color Palettes
+
+```{r}
+RColorBrewer::display.brewer.all() # To see the color palette
+
+ggplot(mpg) + 
+  geom_point(aes(x = displ, y = hwy, color = class)) +
+  scale_color_brewer(type = "div", palette = 3)
+```
+
+## 3.1.3.2 Bubble Chart
+
+```{r}
+ggplot(mpg) +
+  geom_point(aes(x = displ, y = hwy, color = class, size = cyl)) +
+  scale_color_brewer(type = "div", palette = 3)
+```
+
+## 3.1.3.3 Continuous Class
+
+```{r}
+# Original code
+ggplot(mpg) +
+  geom_point(aes(x = displ, y = hwy, color = class, size = cty))
+# Replace with continuous variable
+ggplot(mpg) +
+  geom_point(aes(x = displ, y = hwy, color = cty, size = cty))
+```
+
+The legend for color mapped by discrete variable was just one-to-one legend with each color representing one category. The legend for color mapped by continuous variable, however, will be a gradient color bar with continuous scale showing the relationship between color darkness and value of the variable.
+
+```{r}
+ggplot(mpg) + 
+  geom_point(aes(x = displ, y = hwy, color = cty, size = cty)) +
+  guides(colour = "legend")
+```
+
+When multiple aesthetics are mapped to the same variable, the guides will show both `size` and `color` in it! The higher `cty` is, the larger and lighter color will the scatter point be.
+
+# 3.1.4 Facets
+
+## 3.1.4.1 Axes of Facets
+
+```{r}
+ggplot(mpg) +
+  geom_point(aes(x = displ, y = hwy)) +
+  facet_wrap(~drv, scales = "fixed")
+
+ggplot(mpg) +
+  geom_point(aes(x = displ, y = hwy)) +
+  facet_wrap(~drv, scales = "free")
+```
+
+The axes will be adjusted to the range of sub-group dataset if the argument `scale` is set to `"free"`. However, for this dataset, fixed scale may be better to see the difference among subgroups.
+
+# 3.1.5 Theme
+
+## 3.1.5.1 Hideous Figure
+
+```{r}
+mpg |> 
+  ggplot(aes(y = class, fill = drv)) + 
+  geom_bar() + 
+  facet_wrap(~year) + 
+  scale_fill_brewer(type = "seq", palette = 18) +
+  labs(
+    title = "Number of car models per class",
+    caption = "source: http://fueleconomy.gov",
+    x = 'Number of cars',
+    y = NULL
+  ) +
+  theme(
+    text = element_text("Times New Roman", size = 20),
+    panel.grid.major = element_line(color = "black", linewidth = 0.5),
+    panel.grid.minor = element_line(color = "black", linewidth = 0.5),
+    plot.caption = element_text("Arial", face = "italic")
+  )
+```
+
+I use `element_text()` function in `text` argument to set the font style to the least favorite Times New Roman (??). Besides, the `size` argument in `element_text()` is set to 20 which is very large. The grid line are all set to `black`, both major and minor.
+
+The other change not made in `theme()` function but also contribute significantly to the hideousness of the plot is the color palette which I change in `scale_fill_brewer()`.
+
+# 3.2 Simulation
+
+```{r}
+url <- "https://raw.githubusercontent.com/acastroaraujo/socStats/main/simulation_function_week3.R"
+source(url)
+
+sims <- simulation_votes(dem_prob_pop = 0.75, sample_size = 90, num_sims = 1e3)
+sims
+
+theme_set(theme_light(base_family = "Avenir Next Condensed")) 
+
+sims <- simulation_votes(dem_prob_pop = 0.52, sample_size = 300, num_sims = 500)
+
+results <- sims |> 
+  group_by(id) |> 
+  summarize(dem_prop = mean(vote == "Dem"))
+
+results
+```
+
+## 3.2.1.1 Mean and SD
+
+```{r}
+mean(results$dem_prop)
+sd(results$dem_prop)
+```
+
+The average `dem_prop` is 0.5183, and the standard deviation is 0.0289
+
+The current sample size is 300. The following code would plot the mean and standard deviation for sample size of 100, 200, 300, 400, ...
+
+```{r}
+summary_df <- data.frame(
+  sample_size = seq(100, 3000, by = 100)
+)
+
+for (i in c(1:30)){
+  sims <- simulation_votes(dem_prob_pop = 0.52, sample_size = i*100, num_sims = 500)
+  results <- sims |> 
+    group_by(id) |> 
+    summarize(dem_prop = mean(vote == "Dem"))
+  summary_df$demo_prop_mean[summary_df$sample_size == i*100] <- mean(results$dem_prop)
+  summary_df$demo_prop_sd[summary_df$sample_size == i*100] <- sd(results$dem_prop)
+}
+
+ggplot(summary_df) +
+  geom_line(aes(x = sample_size, y = demo_prop_mean)) 
+
+ggplot(summary_df) +
+  geom_line(aes(x = sample_size, y = demo_prop_sd))
+```
+
+We can see from the plot that the average `dem_prop` is fluctuating around 0.52 (the parameter set in the simulation function) and getting more and more close to the value of 0.52.
+
+Standard deviation of `dem_prop` keeps going down when sample size increases.
+
+## 3.2.1.2 Sample Size and Boxplots
+
+```{r}
+# Create the empty data frame
+stacked_results <- data.frame()
+# Loop over different sample size, compute the dem_prop, and stack to the data frame
+for (i in c(10, 20, 50, 200, 500, 1000, 2000)){
+  sims <- simulation_votes(dem_prob_pop = 0.52, sample_size = i, num_sims = 500)
+  results <- sims |> 
+    group_by(id) |> 
+    summarize(dem_prop = mean(vote == "Dem")) |> 
+    mutate(sample_size = i)
+  stacked_results <- bind_rows(stacked_results, results)
+}
+# Do the boxplot by group of sample size
+ggplot(stacked_results) +
+  geom_boxplot(aes(x = as.factor(sample_size), y = dem_prop, group = sample_size))+
+  xlab("Sample Size of Simulation") +
+  ylab("Proportion of Voters for Democrates")
+```
+
+I did not stack the sample dataset directly, but stack the computed `dem_prop`, so there is no `group_by(id, sample_size)` step here.
+
+Form the boxplot, we can see that the IQR is getting smaller and smaller when sample size increases. Besides, the mean of `dem_prop` is getting closer to the parameter 0.52
+
+## 3.2.1.3 Parameters
+
+```{r}
+stacked_results <- data.frame() # Create the empty data frame
+# Loop over different parameters, compute the dem_prop, and stack to the data frame
+for (p in c(0.43, 0.49, 0.52, 0.55, 0.58, 0.62)){
+  sims <- simulation_votes(dem_prob_pop = p, sample_size = 300, num_sims = 500)
+  results <- sims |> 
+    group_by(id) |> 
+    summarize(dem_prop = mean(vote == "Dem")) |> 
+    mutate(dem_prob_pop = p)
+  stacked_results <- bind_rows(stacked_results, results)
+}
+
+ggplot(stacked_results) +
+  geom_boxplot(aes(x = as.factor(dem_prob_pop), y = dem_prop, group = dem_prob_pop))+
+  xlab("Value of Parameter Demo_prop") +
+  ylab("Proportion of Voters for Democrates from Simulation")
+```
+
+The boxplots drew from the simulation results center around the parameter value that we set. In addition, all the boxplots have very similar distributions. Their IQRs look close to each other.
