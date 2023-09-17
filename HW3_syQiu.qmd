@@ -178,10 +178,10 @@ The current sample size is 300. The following code would plot the mean and stand
 
 ```{r}
 summary_df <- data.frame(
-  sample_size = seq(100, 3000, by = 100)
+  sample_size = seq(100, 8000, by = 100)
 )
 
-for (i in c(1:30)){
+for (i in c(1:80)){
   sims <- simulation_votes(dem_prob_pop = 0.52, sample_size = i*100, num_sims = 500)
   results <- sims |> 
     group_by(id) |> 
