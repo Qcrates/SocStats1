@@ -10,6 +10,7 @@ Load packages and dataset
 
 ```{r}
 # | echo: false
+# | message: false
 library(tidyverse)
 library(ggplot2)
 

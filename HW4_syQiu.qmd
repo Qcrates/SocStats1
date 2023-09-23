@@ -1,0 +1,133 @@
+---
+title: "HW4_syQiu"
+format: html
+editor: visual
+autho: Shuyi Qiu
+embed-resources: true
+---
+
+```{r packages}
+# | echo: false
+# | message: false
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+# Themes set
+theme_set(theme_light(base_family = "Avenir Next Condensed"))
+```
+
+# 4.1 Exercise
+
+```{r}
+x <- rnorm(100000, mean = 0, sd = 1)
+mean(x >= -1 & x <= 1)
+mean(x >= -2 & x <= 2)
+mean(x >= 0)
+mean(x <= 0)
+```
+
+# 4.2 Exercise
+
+```{r}
+quantile(x)
+```
+
+The result output means the minimum value in the vector x is -4.672, or we can say 0% of the observations in x is lower than -4.672. 25% of the observations in x is lower than -0.673. 50% of the observations in x is lower than 0.002. 75% of the observation is lower than 0.677. 100% of the observations is lower than 4.589. The distribution of x may show a symmetric shape.
+
+# 4.3 Exercise
+
+```{r}
+quantile(x, prob = c(0.005, 0.995))
+```
+
+The 0.5% percentile of x is -2.560 and 99.5% percentile of x is 2.567. They are close to -2.576 and 2.576.
+
+# 4.4 Exercise
+
+```{r}
+mean(x >= -2.576 & x <= 2.576)
+```
+
+# 4.5 Exercise
+
+```{r}
+df <- tibble(sid = c(1:1000)) |> 
+  rowwise() |> 
+  mutate(simresults = sum(runif(n = 20, min = 0, max = 1))/20)
+
+ggplot(df, aes(x = simresults)) +
+  geom_histogram(color = "white")
+
+sd(df$simresults)
+sd(runif(n = 20, min = 0, max = 1))/sqrt(20)
+```
+
+The standard deviation of the sampling distribution is not so close to the standard error...If we increase the sample size (e.g. to 1000), it will be very close:
+
+```{r}
+df <- tibble(sid = c(1:1000)) |> 
+  rowwise() |> 
+  mutate(simresults = sum(runif(n = 1000, min = 0, max = 1))/1000)
+
+ggplot(df, aes(x = simresults)) +
+  geom_histogram(color = "white")
+
+sd(df$simresults)
+sd(runif(n = 1000, min = 0, max = 1))/sqrt(1000)
+```
+
+# 4.6 Exercise
+
+It means when the sample size \>= 30, the sample size is large enough for its sample means to be considered as a normal distribution.
+
+Steve's example:
+
+```{r}
+set.seed(123)
+est_prop <- 1/3
+num_sims <- 10000 
+svy_size <- 2247
+
+sims <- tibble(sim_num = 1:num_sims) |> 
+  uncount(svy_size)
+
+sims <- sims |> 
+  mutate(conservative = rbinom(num_sims*svy_size, 1, est_prop)) |> 
+  group_by(sim_num) |> 
+  summarize(prop = mean(conservative))
+
+ggplot(sims,aes(x = prop)) +
+  geom_histogram(color = "white")
+
+std_error <- sqrt((1/3)*(2/3))/sqrt(svy_size)
+ci95_cmpt <- c(est_prop - 1.96 * std_error, est_prop + 1.96 * std_error)
+ci95 <- c(quantile(sims$prop, 0.025), quantile(sims$prop, 0.975))
+ci95_cmpt
+ci95
+```
+
+If we repeat the simulation with `svy_size` equals to 10, 20, 30, 50, 100, 1000, 3000, 5000
+
+```{r}
+set.seed(123)
+est_prop <- 1/3
+num_sims <- 10000 
+svy_size_vector <- c(10, 20, 30, 50, 100, 1000, 3000, 5000)
+
+for (svy_size in svy_size_vector){
+  sims <- tibble(sim_num = 1:num_sims) |> 
+    uncount(svy_size)
+
+  sims <- sims |> 
+    mutate(conservative = rbinom(num_sims*svy_size, 1, est_prop)) |> 
+    group_by(sim_num) |> 
+    summarize(prop = mean(conservative))
+
+  std_error <- sqrt((1/3)*(2/3))/sqrt(svy_size)
+  ci95_cmpt <- c(est_prop - 1.96 * std_error, est_prop + 1.96 * std_error)
+  ci95 <- c(quantile(sims$prop, 0.025), quantile(sims$prop, 0.975))
+  print(list(svy_size, ci95_cmpt, ci95))
+}
+```
+
+No. When the sample size is lower than 30, the 95% confidence interval is not about 2 standard errors away from 0.33. However, when the sample size increases, it is more and more close to 2 standard errors away from 0.33. The results are consistent with my initial interpretation of the idea about sample size and CLT.
