@@ -1,0 +1,151 @@
+---
+title: "HW5_syQiu"
+author: "Shuyi Qiu"
+format: html
+editor: visual
+---
+
+```{r}
+#| warning: false
+#| error: false
+library(tidyverse)
+```
+
+Some basic functions to work with binomial distribution:
+
+-   `dbinom(x, size, prob)`: return the probability of having `x` heads if toss a coin for `size` times with a probability of `prob` to have heads. The result is equal to `choose(size, x) * prob^x * (1-prob)^(size - x)`
+
+-   `pbinom(q, size, prob)`: return the area (CDF). `pbinom(size, size, prob) = 1`, not so commonly used...cannot think of a context to use it.
+
+-   `rbinom(n, size, prob)`: randomly generate a vector of `n` random variables, each of which equal to the number of heads within `size` trials of coin toss.
+
+-   `qbinom(p, size, prob)`: inverse of `pbinom()`, return the number at the point when area under the CDF equal to `p`
+
+# 5.2.1 Bernoulli Distribution
+
+```{r}
+# Verification of equation 5.1
+dbinom(1, 1, 2/3)
+dbinom(0, 1, 2/3)
+dbinom(2, 1, 2/3)
+
+# Verification of equation 5.2
+pbinom(-1, 1, 2/3)
+pbinom(0, 1, 2/3)
+pbinom(1, 1, 2/3)
+pbinom(2, 1, 2/3)
+
+# rbinom() and plot
+bernoulli_sample <- data.frame(
+  sid = c(1:100),
+  results = rbinom(100, 1, 2/3)
+)
+ggplot(bernoulli_sample, aes(results)) +
+  geom_bar()
+```
+
+# 5.3.1 Sample space
+
+Possible scenarios by the number of heads:
+
+1 possible way to get 0 $H$: $(T,T,T,T)$
+
+4 possible ways to get 1 $H$: $(H, T, T, T), (T, H, T, T), (T, T, H, T), (T, T, T, H)$
+
+6 possible ways to get 2 $H$s: $(T, T, H, H), (T, H, H, T), (H, H, T, T), (T, H, T, H), (H, T, H, T), (H, T, T, H)$
+
+4 possible ways to get 3 $H$s: $(T, H, H, H), (H, T, H, H), (H, H, T, H), (H, H, H, T)$
+
+1 possible way to get 4 $H$s: $(H, H, H,H)$
+
+Therefore, the sample space of a total of 16 possible ways is
+
+$$
+\Omega=\{(T, T, T, T), (H, T, T, T), (T, H, T, T), (T, T, H, T), \\(T, T, T, H), (T, T, H, H), (T, H, H, T), (H, H, T, T), \\(T, H, T, H), (H, T, H, T), (H, T, T, H), (T, H, H, H), \\(H, T, H, H), (H, H, T, H), (H, H, H, T), (H, H, H, H)\}
+$$
+
+# 5.3.2 Probabilities
+
+Denote $Y()$ as the number of events
+
+$Y(X=0)=1$
+
+$Y(X=1)=4$
+
+$Y(X=2)=6$
+
+$Y(X=3)=4$
+
+$Y(X=4)=1$
+
+$Pr(X=2)=\frac{Y(X=1)}{\sum_{i=0}^{4}Y(X=i)}=\frac{6}{1+4+6+4+1}=0.375$
+
+$Pr(X<=1)=\frac{Y(X=0)+Y(X=1)}{\sum_{i=0}^{4}Y(X=i)}=\frac{1+4}{1+4+6+4+1}=0.3125$
+
+```{r}
+dbinom(2, 4, 0.5) # Pr(x = 2)
+pbinom(1, 4, 0.5) # Pr(X <= 1)
+```
+
+# 5.3.3 Size = 5
+
+```{r}
+binom_sample <- data.frame(
+  results = rbinom(n = 1000, size = 5, prob = 2/3)
+)
+ggplot(binom_sample, aes(x = results)) +
+  geom_bar() +
+  scale_x_continuous(breaks = c(0:5))
+
+mean(binom_sample$results %% 2 == 0) # Prob(X is an even number)
+dbinom(x = 2, size = 5, prob = 2/3) + dbinom(x = 4, size = 5, prob = 2/3) # Theoretically
+```
+
+# 5.3.5 Revisit
+
+Calculate manually:
+
+There are 6 possible scenarios to get two heads, therefore, the probability of having two heads in four coin tosses when the probability of head is 1/3 is $Pr(X=2)=6*(\frac{1}{3})^2*(\frac{2}{3})^2=$ `r choose(4,2)*(1/3)^2*(2/3)^2`
+
+```{r}
+dbinom(2, 4, 1/3) # Pr(x = 2)
+```
+
+# 5.3.7 Verification
+
+We can verify this by creating a data frame listing all the probabilities and cumulative probabilities, as well as the computed results by equation manually.
+
+```{r}
+binom_verif <- data.frame(x = c(1:15)) |> 
+  mutate(
+    func_dbinom = dbinom(x, 15, 2/3),
+    calc_dbinom = choose(15, x) * (2/3)^x * (1-2/3)^(15-x),
+    func_pbinom = pbinom(x, 15, 2/3),
+    calc_pbimom = cumsum(calc_dbinom)
+  )
+
+binom_verif
+```
+
+We can see the results computed by function and by hand are almost the same.
+
+There are very subtle differences between the cumulative results computed by function and by hand, possibly caused by digits issue.
+
+# 5.4.1 Likelihoods
+
+```{r}
+grid <- tibble(prob = seq(0, 1, by = 0.001))
+grid$like <- dbinom(21, 47, grid$prob) 
+grid <- grid |> 
+  mutate(
+    clike_raw = cumsum(like),
+    clike_normalized = clike_raw/sum(like)
+  )
+
+ggplot(grid, aes(x = prob, y = clike_normalized)) +
+  geom_line()
+
+1-grid$clike_normalized[grid$prob == 0.588]
+```
+
+The chances that `prob` is equal to or greater than 0.588 is 0.025
