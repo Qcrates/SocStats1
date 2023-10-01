@@ -206,7 +206,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mean</span>(binom_sample<span class="sc">$</span>results <span class="sc">%%</span> <span class="dv">2</span> <span class="sc">==</span> <span class="dv">0</span>) <span class="co"># Prob(X is an even number)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] 0.492</code></pre>
+<pre><code>[1] 0.49</code></pre>
 </div>
 <div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">dbinom</span>(<span class="at">x =</span> <span class="dv">2</span>, <span class="at">size =</span> <span class="dv">5</span>, <span class="at">prob =</span> <span class="dv">2</span><span class="sc">/</span><span class="dv">3</span>) <span class="sc">+</span> <span class="fu">dbinom</span>(<span class="at">x =</span> <span class="dv">4</span>, <span class="at">size =</span> <span class="dv">5</span>, <span class="at">prob =</span> <span class="dv">2</span><span class="sc">/</span><span class="dv">3</span>) <span class="co"># Theoretically</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
@@ -225,11 +225,63 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </section>
-<section id="section" class="level1">
-<h1>5.3.7</h1>
+<section id="verification" class="level1">
+<h1>5.3.7 Verification</h1>
+<p>We can verify this by creating a data frame listing all the probabilities and cumulative probabilities, as well as the computed results by equation manually.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>binom_verif <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">x =</span> <span class="fu">c</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">15</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">func_dbinom =</span> <span class="fu">dbinom</span>(x, <span class="dv">15</span>, <span class="dv">2</span><span class="sc">/</span><span class="dv">3</span>),</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">calc_dbinom =</span> <span class="fu">choose</span>(<span class="dv">15</span>, x) <span class="sc">*</span> (<span class="dv">2</span><span class="sc">/</span><span class="dv">3</span>)<span class="sc">^</span>x <span class="sc">*</span> (<span class="dv">1-2</span><span class="sc">/</span><span class="dv">3</span>)<span class="sc">^</span>(<span class="dv">15</span><span class="sc">-</span>x),</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">func_pbinom =</span> <span class="fu">pbinom</span>(x, <span class="dv">15</span>, <span class="dv">2</span><span class="sc">/</span><span class="dv">3</span>),</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">calc_pbimom =</span> <span class="fu">cumsum</span>(calc_dbinom)</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>binom_verif</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>    x  func_dbinom  calc_dbinom  func_pbinom  calc_pbimom
+1   1 2.090752e-06 2.090752e-06 2.160443e-06 2.090752e-06
+2   2 2.927052e-05 2.927052e-05 3.143097e-05 3.136127e-05
+3   3 2.536779e-04 2.536779e-04 2.851088e-04 2.850391e-04
+4   4 1.522067e-03 1.522067e-03 1.807176e-03 1.807106e-03
+5   5 6.697095e-03 6.697095e-03 8.504271e-03 8.504202e-03
+6   6 2.232365e-02 2.232365e-02 3.082792e-02 3.082785e-02
+7   7 5.740368e-02 5.740368e-02 8.823160e-02 8.823153e-02
+8   8 1.148074e-01 1.148074e-01 2.030389e-01 2.030389e-01
+9   9 1.785892e-01 1.785892e-01 3.816282e-01 3.816281e-01
+10 10 2.143071e-01 2.143071e-01 5.959352e-01 5.959351e-01
+11 11 1.948246e-01 1.948246e-01 7.907598e-01 7.907597e-01
+12 12 1.298831e-01 1.298831e-01 9.206429e-01 9.206428e-01
+13 13 5.994603e-02 5.994603e-02 9.805889e-01 9.805888e-01
+14 14 1.712744e-02 1.712744e-02 9.977163e-01 9.977163e-01
+15 15 2.283658e-03 2.283658e-03 1.000000e+00 9.999999e-01</code></pre>
+</div>
+</div>
+<p>We can see the results computed by function and by hand are almost the same.</p>
+<p>There are very subtle differences between the cumulative results computed by function and by hand, possibly caused by digits issue.</p>
 </section>
-<section id="section-1" class="level1">
-<h1>5.4.1</h1>
+<section id="likelihoods" class="level1">
+<h1>5.4.1 Likelihoods</h1>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>grid <span class="ot">&lt;-</span> <span class="fu">tibble</span>(<span class="at">prob =</span> <span class="fu">seq</span>(<span class="dv">0</span>, <span class="dv">1</span>, <span class="at">by =</span> <span class="fl">0.001</span>))</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>grid<span class="sc">$</span>like <span class="ot">&lt;-</span> <span class="fu">dbinom</span>(<span class="dv">21</span>, <span class="dv">47</span>, grid<span class="sc">$</span>prob) </span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>grid <span class="ot">&lt;-</span> grid <span class="sc">|&gt;</span> </span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">clike_raw =</span> <span class="fu">cumsum</span>(like),</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">clike_normalized =</span> clike_raw<span class="sc">/</span><span class="fu">sum</span>(like)</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(grid, <span class="fu">aes</span>(<span class="at">x =</span> prob, <span class="at">y =</span> clike_normalized)) <span class="sc">+</span></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="HW5_syQiu_files/figure-html/unnamed-chunk-7-1.png" class="img-fluid" width="672"></p>
+</div>
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="dv">1</span><span class="sc">-</span>grid<span class="sc">$</span>clike_normalized[grid<span class="sc">$</span>prob <span class="sc">==</span> <span class="fl">0.588</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 0.02474252</code></pre>
+</div>
+</div>
+<p>The chances that <code>prob</code> is equal to or greater than 0.588 is 0.025</p>
 </section>
 
 </main>
