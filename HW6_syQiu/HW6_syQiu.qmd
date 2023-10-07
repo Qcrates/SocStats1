@@ -3,25 +3,364 @@ title: "HW6_syQiu"
 author: "Shuyi Qiu"
 format: html
 editor: visual
+embed-resources: true
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+# Set-up
 
 ```{r}
-1 + 1
+library(tidyverse)
+library(infer)
+library(janitor) ## for convenient "table" functions
+library(gssr)    ## for access to GSS data
+library(ggplot2)
+library(reshape)
+set.seed(321)
+## You can choose another ggplot2 theme, obviously. 
+## Windows users might not have this font available!
+theme_set(theme_light(base_family = "Optima")) 
 ```
 
-You can add options to executable code like this
+# 6.1 The Truth is Known
+
+## 6.1.2 Choose Sample Size
+
+### Method 1. Simulations
+
+From the example with a poll size of 1000, we know that the standard error is approximately 0.01578. Therefore to choose sample size to make the standard error less than 0.05, we can construct a grid of 1000 by the step of 1, and compute the standard error for each sample size.
 
 ```{r}
-#| echo: false
-2 * 2
+# Define the function
+sample_se <- function(sample_size){
+  S <- 1e4 # Number of simulated draws
+  poll_size <- sample_size # Sample size
+  draws <- rbinom(S, size = poll_size, prob = 0.53)
+  proportions <- draws / poll_size
+  se <- sd(proportions)
+  return(se)
+}
+
+# Construct the simulations grid for different sample size
+sim_grid <- data.frame(sample_size = c(1:1000)) |> 
+  rowwise() |> 
+  mutate(se = sample_se(sample_size))
+
+# Plot se v.s. sample size
+ggplot(sim_grid, aes(x = sample_size, y = se)) +
+  geom_line() +
+  geom_hline(yintercept = 0.05, linetype = "dotdash") +
+  xlab("Sample Size") +
+  ylab("se")
+
+# The minimum sample size to have se <= 0.05
+min(sim_grid |> filter(se <= 0.05) |> select(sample_size))
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+We can see from the line plot that standard error gets lower when sample size increases. The dashed horizontal line marks a standard error of 0.05. The intersection point is located at a sample size of `r min(sim_grid |> filter(se <= 0.05) |> select(sample_size))`.
+
+### Method 2. Math
+
+We can use mathematical way to verify the simulation results.
+
+$$
+se_p=\sqrt{\frac{p(1-p)}{n}}=\sqrt{\frac{0.53*0.47}{n}}\leq0.05
+$$
+
+$$
+n\geq\frac{0.53*0.47}{0.0025}
+$$
+
+$$
+n \ge 99.64
+$$
+
+Therefore the minimum n is 100, which is close to the result from simulation.
+
+## 6.1.5 Hypothesis Testing
+
+```{r}
+set.seed(321)
+# Establish the sample
+one_dataset <- rbinom(1000, size = 1, prob = 0.53)
+glimpse(one_dataset)
+# Estimated proportion
+prop_hat <- mean(one_dataset)
+prop_hat
+# Bootstrap
+boot_stats <- replicate(1e4, {
+  resample <- sample(one_dataset, replace = TRUE)
+  mean(resample)
+})
+# Confidence interval, constructed from the the data we get to observe
+ci95 <- quantile(boot_stats, c(0.025, 0.975))
+ci95
+
+# Math way
+se_hat <- sqrt(prop_hat * (1 - prop_hat)/1000)
+se_hat
+qnorm(c(0.025, 0.975), mean = prop_hat, sd = se_hat)
+```
+
+```{r}
+
+# Proportions
+S <- 1e4 ## number of simulated draws
+poll_size <- 1000 ## sample size
+
+draws <- rbinom(S, size = poll_size, prob = 0.53)
+proportions <- draws / poll_size
+
+# Build the null world
+S <- 1e4
+poll_size <- 1000
+draws <- rbinom(S, size = poll_size, prob = 0.50)
+null <- draws / poll_size
+
+mean(null >= 0.53) * 2
+mean(null >= prop_hat) * 2
+```
+
+The probability of observing the true value under the null is `r mean(null >= 0.53) * 2`
+
+The probability of observing `prop_hat` under the null is `r mean(null >= prop_hat) * 2`. It is not statistically significant under the confidence level of 0.05. We can get the same conclusion because $H_0$ is included within the confidence interval (`r ci95`).
+
+## 6.1.7 Difference in Proportions
+
+```{r}
+p1 <- 0.5
+n1 <- 120
+p2 <- 0.6
+n2 <- 90
+
+S <- 1e5
+draws1 <- rbinom(S, size = n1, prob = p1) 
+proportions1 <- draws1 / n1 
+draws2 <- rbinom(S, size = n2, prob = p2)
+proportions2 <- draws2 / n2
+theta_distribution <- proportions1 - proportions2
+mean(theta_distribution)
+sd(theta_distribution)
+```
+
+The formula to calculate the standard error of a difference in proportions:
+
+$$
+\begin{aligned}
+\sigma_{\hat{p_1}-\hat{p_2}} =& \sqrt{\frac{p_1(1-p_1)}{n_1}+\frac{p_2(1-P_2)}{n_2}} \\
+=&\sqrt{\frac{0.5*0.5}{120}+\frac{0.6*0.4}{90}} \\
+=&0.06892024
+\end{aligned}
+$$
+
+The computed standard error is very close to the simulation results.
+
+## 6.1.8 Comparison of Proportions
+
+We can do a similar test to examine the difference in participation rate
+
+```{r}
+p1 <- 0.5
+n1 <- 500
+p2 <- 0.4
+n2 <- 500
+
+S <- 1e5
+draws1 <- rbinom(S, size = n1, prob = p1) 
+proportions1 <- draws1 / n1 
+draws2 <- rbinom(S, size = n2, prob = p2)
+proportions2 <- draws2 / n2
+theta_distribution <- proportions1 - proportions2
+mean(theta_distribution)
+sd(theta_distribution)
+```
+
+# 6.2 The Data is Known
+
+Load the GSS dataset
+
+```{r}
+gss18 <- gss_get_yr(2018) 
+
+d <- gss18 |> 
+  select(sex, attend, polviews) |> 
+  haven::zap_missing() |> 
+  mutate(sex = as_factor(sex)) |> 
+  haven::zap_labels() |> 
+  drop_na()
+
+glimpse(d)
+```
+
+## 6.2.1 Variable Info
+
+`attend` describes the frequency of the respondents attending religious services. It is a 9-level categorical variable with 0 represent never and 8 represent several times a week: The higher the number is, the more frequent the respondent attended religious services.
+
+`polvies` describes the respondent's political views. It is a 7-level scale variable with 1 represents extremely liberal and 7 represents extreme conservative. The higher the number is, the more conservative political view. "4" means a moderate political view of the respondent.
+
+## 6.2.2 Weekly Religious Attendance v.s. Political View
+
+```{r}
+d <- d |> 
+  mutate(
+    weekly = ifelse(attend >= 7, 1L, 0L),
+    conservative = ifelse(polviews >= 5, 1L, 0L), # Moderate are in non-conservative
+    weekly_fct = factor(weekly, levels = c(0, 1), labels = c("Less Than Weekly","Weekly")),
+    conservative_fct = factor(conservative, levels = c(0, 1), labels = c("Non-Conservative","Conservative"))
+  )
+
+set.seed(27705)
+
+# Cross-tab
+d |> 
+  tabyl(conservative, weekly) |> 
+  adorn_percentages("row") |> 
+  adorn_pct_formatting(digits = 2) |> # Format to keep 2 digits number
+  adorn_ns() # Add number count
+
+# Visualization
+d |> 
+  group_by(conservative_fct) |> 
+  summarise(percent = mean(weekly) * 100) |> 
+  ggplot(aes(x = conservative_fct, y = percent, fill = conservative_fct)) +
+  geom_col() +
+  coord_flip() + # Flip the coordinates
+  labs(y = "% of Respondents Attending Religious Services Weekly",
+       x = "Political Views",
+       fill = "Political Views")
+
+# Bootstrapping method on the sample
+boot_dist <- d |> 
+  specify(weekly ~ conservative_fct) |> 
+  generate(reps = 1000,
+           type = "bootstrap") |> 
+  calculate(stat = "diff in means",
+            order = c("Non-Conservative","Conservative"))
+
+ci <- boot_dist |> 
+  get_confidence_interval(level = .95)
+ci
+
+boot_dist |> 
+  visualize() +
+  shade_ci(ci)
+```
+
+Hypothesis testing
+
+```{r}
+obs_diff = mean(d$weekly[d$conservative_fct == "Non-Conservative"]) - mean(d$weekly[d$conservative_fct == "Conservative"])
+
+null_dist <- d |> 
+  specify(weekly ~ conservative_fct) |> 
+  hypothesize(null = "independence") |> 
+  generate(reps = 1000,
+           type = "permute") |> 
+  calculate(stat = "diff in means",
+            order = c("Non-Conservative","Conservative"))
+
+null_dist |> 
+  get_p_value(obs_diff, direction = "both")
+
+null_dist |> 
+  visualize() +
+  shade_p_value(obs_diff, direction = "both")
+```
+
+## 6.2.3 Significance
+
+The proportions of weekly-attending people among those with a non-conservative (liberal or mild) political view is significantly lower than that among those with a conservative political view. Same results can get from either the confidence interval and the hypothesis testing.
+
+## 6.2.4 Heat map
+
+```{r}
+count_df <- d |> 
+  group_by(polviews, attend) |> 
+  summarise(value = n()) |> 
+  mutate(type = "Counts")
+
+rowpct_df <- d |> 
+  group_by(polviews, attend) |> 
+  summarise(num_count = n()) |> 
+  group_by(polviews) |> 
+  mutate(
+    pol_sum = sum(num_count),
+    value = num_count/pol_sum,
+    type = "Row Percentages",
+    forlabel = round(value * 100, 1)) |> 
+  select(polviews, attend, value, type, forlabel)
+
+colpct_df <- d |> 
+  group_by(polviews, attend) |> 
+  summarise(num_count = n()) |> 
+  group_by(attend) |> 
+  mutate(
+    att_sum = sum(num_count),
+    value = num_count/att_sum,
+    type = "Column Percentages",
+    forlabel = round(value * 100, 1)) |> 
+  select(polviews, attend, value, type, forlabel)
+
+count_map <- ggplot(count_df, aes(x = factor(attend), y = factor(polviews), fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = value), color = "white", size = 2) +
+  coord_fixed()
+
+rowpct_map <- ggplot(rowpct_df, aes(x = factor(attend), y = factor(polviews), fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = forlabel), color = "white", size = 2) +
+  coord_fixed()
+
+colpct_map <- ggplot(colpct_df, aes(x = factor(attend), y = factor(polviews), fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = forlabel), color = "white", size = 2) +
+  coord_fixed()
+
+library(ggpubr)
+combined_figure <- ggarrange(count_map, rowpct_map, colpct_map, 
+          labels = c("Counts","Row Percentages (%)","Column Percentages (%)"),
+          nrow = 1, ncol = 3, legend = "none", align = "h")
+combined_figure #??? How to set to a shared y-axis???
+```
+
+From the table of row and column percentages, we can see
+
+-   Most people have a mild political view. (Column percentage table have a light middle line)
+
+-   The more liberal people are, the higher the proportion of "never attend religious services" is.
+
+-   People who are more conservative tend to attend religious services more frequently.
+
+## 6.2.5 Bonus: Chi-square test
+
+```{r}
+d |> 
+  tabyl(conservative_fct, weekly_fct)
+
+obs_chi_square <- d |> 
+  specify(weekly_fct ~ conservative_fct,
+          success = "Weekly") |> 
+  calculate(stat = "Chisq",
+            order = c("Non-Conservative", "Conservative")) 
+obs_chi_square
+
+## h-test
+null_dist <- d |> 
+  specify(weekly_fct ~ conservative_fct,
+          success = "Weekly") |>
+  hypothesise(null = "independence") |> 
+  generate(reps = 1000,
+           type = "permute") |> 
+  calculate(stat = "Chisq",
+            order = c("Non-Conservative", "Conservative")) 
+
+null_dist |> 
+  get_p_value(obs_chi_square,
+              direction = "greater")
+
+null_dist |> 
+  visualize() +
+  shade_p_value(obs_chi_square,
+                direction = "greater")
+```
+
+Therefore we can reject the null hypothesis that the two variables are independent of each other.
