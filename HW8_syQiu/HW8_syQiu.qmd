@@ -1,0 +1,631 @@
+---
+title: "HW8_syQiu"
+format: html
+editor: visual
+embed-resources: true
+---
+
+Set up packages and import data
+
+```{r}
+#| warning: false
+#| error: false
+library(gssr)
+library(tidyverse)
+library(infer)
+library(janitor)
+
+gss18 <- gss_get_yr(2018) 
+```
+
+For easy look-up, I listed the definition for each variable here before the exploratory data analyses.
+
+-   `wrkslf`: Whether self-employed or not
+
+-   `attend`: The frequency of attending religious services
+
+-   `polviews` : Political view
+
+-   `cappun`: Favor death penalty or not
+
+-   `suicide3`: Do you agree that a person has the right to suicide if this person has dishonored his/her their?
+
+-   `xmarsex`: Attitude towards extra-marital sexual relationship
+
+-   `degree`: Highest degree achieved
+
+-   `padeg`: R's father's highest degree
+
+-   `madeg`: R's mother's highest degree
+
+-   `sex`: R's sex
+
+-   `race`: R's race
+
+-   `born`: Were you born in US?
+
+-   `mcsds6`: Like to gossip at times
+
+-   `condom`: Used condom or not the last time when the R had sex
+
+-   `marital`: Marital status
+
+-   `god`: Belief in god
+
+# 1. Parents' Education v.s. R's Education
+
+I am interested in the association between parents' education outcome and the child's education outcome. Here I specifically looked into the outcome of college completion.
+
+```{r}
+tempdf <- gss18 |> 
+  select(degree, padeg, madeg) |> 
+  drop_na() |> 
+  mutate(
+    r_gtba = factor(ifelse(degree >= 3, TRUE, FALSE), levels = c(FALSE, TRUE), labels = c("No BA", "BA or more")),
+    f_gtba = factor(ifelse(padeg >= 3, TRUE, FALSE), levels = c(FALSE, TRUE), labels = c("No BA", "BA or more")),
+    m_gtba = factor(ifelse(madeg >= 3, TRUE, FALSE), levels = c(FALSE, TRUE), labels = c("No BA", "BA or more"))
+  )
+```
+
+The three education outcome variables used are defined as `0`: No BA degree, `1`: BA degree or more.
+
+-   `r_gtba`: Whether respondent have a degree of BA or more
+
+-   `f_gtba`: Whether respondent's father's have a degree of BA or more
+
+-   `m_gtba`: Whether respondent's mother's have a degree of BA or more
+
+## 1.1 Father's Education
+
+I looked into the association between father's having a degree of BA or more and the respondent's having a degree of BA or more in this section.
+
+$Y$: Respondent's having BA degree or more
+
+$X$: Respondent's father having BA degree or more
+
+```{r}
+tempdf |> 
+  tabyl(f_gtba, r_gtba) |> 
+  adorn_totals(c("row","col"))
+
+tempdf |> 
+  tabyl(f_gtba, r_gtba) |> 
+  adorn_percentages(denominator = "row")
+```
+
+Linear probability model: $p(RespBA = 1) = \alpha + \beta FatherBA$
+
+$$
+\alpha=Pr(RespBA =1|FatherBA=0)=0.2818
+$$
+
+$$
+\begin{aligned}
+\beta&=Pr(RespBA =1|FatherBA=1)-Pr(RespBA =1|FatherBA=0)\\
+&=0.6455-0.2818 \\
+&=0.3638
+\end{aligned}
+$$
+
+Interpretation of $\beta$ : The respondents whose father has BA degree or more have a higher probability of having BA degree or more than those whose father does not have BA degree by 36.38 percentage points.
+
+Logistic regression model: $logit(\frac{p}{1-p})=\alpha + \beta FatherBA$
+
+Where $p$ is $Pr(Resp=1)$
+
+$$
+\alpha = log(\frac{366}{933})=-0.9358
+$$
+
+$$
+\beta=log(\frac{224}{123})-log(\frac{366}{933})=1.5352
+$$
+
+Interpretation of $\beta$: The respondents whose father has BA degree or more have a higher log odds of having BA degree or more than those whose father does not have BA degree by 1.54.
+
+## 1.2 Mother's Education
+
+Similarly, I looked into the association between mother's having a degree of BA or more and the respondent's having a degree of BA or more in this section.
+
+$Y$: Respondent's having BA degree or more
+
+$X$: Respondent's mother having BA degree or more
+
+```{r}
+tempdf |> 
+  tabyl(m_gtba, r_gtba) |> 
+  adorn_totals(c("row","col"))
+
+tempdf |> 
+  tabyl(m_gtba, r_gtba) |> 
+  adorn_percentages(denominator = "row")
+```
+
+Linear probability model: $p(RespBA = 1) = \alpha + \beta MotherBA$
+
+$$
+\alpha=Pr(RespBA =1|MotherBA=0)=0.2891
+$$
+
+$$
+\begin{aligned}
+\beta&=Pr(RespBA =1|MotherBA=1)-Pr(RespBA =1|MotherBA=0)\\
+&=0.6559-0.2891 \\
+&=0.3668
+\end{aligned}
+$$
+
+Interpretation of $\beta$ : The respondents whose mother has BA degree or more have a higher probability of having BA degree or more than those whose mother does not have BA degree by 36.68 percentage points.
+
+Logistic regression model: $logit(\frac{p}{1-p})=\alpha + \beta MotherBA$
+
+Where $p$ is $Pr(Resp=1)$
+
+$$
+\alpha = log(\frac{386}{949})=-0.8996
+$$
+
+$$
+\beta=log(\frac{204}{107})-log(\frac{386}{949})=1.5449
+$$
+
+Interpretation of $\beta$: The respondents whose mother has BA degree or more have a higher log odds of having BA degree or more than those whose mother does not have BA degree by 1.54.
+
+(Without any further adjustment, the crude logistic regression model shows that the effect size of father's having a BA degree or more is almost the same as the effect size of mother's having a BA degree or more on child's education outcome)
+
+# 2. Gender Difference in Attitudes on Death Penalty
+
+```{r}
+tempdf <- gss18 |> 
+  select(sex, cappun) |> 
+  drop_na() |> 
+  mutate(
+    r_male = factor(ifelse(sex == 1, T, F), levels = c(F, T), labels = c("Female","Male")),
+    r_favor = factor(ifelse(cappun == 1, T, F), levels = c(F, T), labels = c("Oppose","Favor"))
+  )
+```
+
+In this section, I am interested in the association between sex and people's attitude towards the death penalty for persons convicted of murder. The variables are defined as below:
+
+$Y$: Respondent's attitude towards death penalty for persons convicted of murder. 1 if favor, 0 if oppose.
+
+$X$: Respondent's sex. 1 if male, 0 if female.
+
+```{r}
+tempdf |> 
+  tabyl(r_male, r_favor) |> 
+  adorn_totals(c("row","col"))
+
+tempdf |> 
+  tabyl(r_male, r_favor) |> 
+  adorn_percentages(denominator = "row")
+```
+
+Linear probability model: $p(Favor = 1) = \alpha + \beta Male$
+
+$$
+\alpha=Pr(Favor =1|Male=0)=0.5963
+$$
+
+$$
+\begin{aligned}
+\beta&=Pr(Favor =1|Male=1)-Pr(Favor =1|Male=0)\\
+&=0.6729-0.5963 \\
+&=0.0767
+\end{aligned}
+$$
+
+Interpretation of $\beta$ : Male respondents have a higher probability of favoring death penalty for persons convicted of murder than female respondents by 7.67 percentage points.
+
+Logistic regression model: $logit(\frac{p}{1-p})=\alpha + \beta Male$
+
+Where $p$ is $Pr(Favor=1)$
+
+$$
+\alpha = log(\frac{706}{478})=0.3900
+$$
+
+$$
+\beta=log(\frac{679}{330})-log(\frac{706}{478})=0.33
+$$
+
+Interpretation of $\beta$: Male respondents have a higher log odds of favoring death penalty for persons convicted of murder than female respondents by 0.33.
+
+# 3. Gender Difference in Attitudes Towards Suicide
+
+```{r}
+tempdf <- gss18 |> 
+  select(sex, suicide3) |> 
+  drop_na() |> 
+  mutate(
+    r_male = factor(ifelse(sex == 1, T, F), levels = c(F, T), labels = c("Female","Male")),
+    r_scd = factor(ifelse(suicide3 == 1, T, F), levels = c(F, T), labels = c("No","Yes"))
+  )
+```
+
+In this section, I am interested in the association between sex and people' attitudes toward people's right to suicide if this person dishonored their families. The variables are defined as below:
+
+$Y$: Whether the respondent think a person has the right to end his or her own life if this person dishonored his or her family. 1 if the respondent agree, 0 if not.
+
+$X$: Respondent's sex. 1 if male, 0 if female.
+
+```{r}
+tempdf |> 
+  tabyl(r_male, r_scd) |> 
+  adorn_totals(c("row","col"))
+
+tempdf |> 
+  tabyl(r_male, r_scd) |> 
+  adorn_percentages(denominator = "row")
+```
+
+Linear probability model: $p(Suicide = 1) = \alpha + \beta Male$
+
+$$
+\alpha=Pr(Suicide =1|Male=0)=0.1144
+$$
+
+$$
+\begin{aligned}
+\beta&=Pr(Suicide =1|Male=1)-Pr(Suicide =1|Male=0)\\
+&=0.1408-0.1144 \\
+&=0.0264
+\end{aligned}
+$$
+
+Interpretation of $\beta$ : Male respondents have a higher probability of agreeing that the person who dishonored their families has the right to suicide than female respondents by 2.64 percentage points.
+
+Logistic regression model: $logit(\frac{p}{1-p})=\alpha + \beta Male$
+
+Where $p$ is $Pr(Suicide=1)$
+
+$$
+\alpha = log(\frac{98}{759})=-2.0470
+$$
+
+$$
+\beta=log(\frac{96}{586})-log(\frac{98}{759})=0.2381
+$$
+
+Interpretation of $\beta$: Male respondents have a higher log odds of agreeing that the person who dishonored their families has the right to suicide than female respondents by 0.24.
+
+# 4. Girls like gossips?
+
+```{r}
+tempdf <- gss18 |> 
+  select(sex, mcsds6) |> 
+  drop_na() |> 
+  mutate(
+    r_male = factor(ifelse(sex == 1, T, F), levels = c(F, T), labels = c("Female","Male")),
+    r_gsp = factor(ifelse(mcsds6 == 1, T, F), levels = c(F, T), labels = c("No","Yes"))
+  )
+```
+
+In this section, I am interested in the association between sex and people' self-recognition as a person like gossips at times. The variables are defined as below:
+
+$Y$: Whether the respondent think themselves like to gossip at times. 1 if the respondent think so, 0 if not.
+
+$X$: Respondent's sex. 1 if male, 0 if female.
+
+```{r}
+tempdf |> 
+  tabyl(r_male, r_gsp) |> 
+  adorn_totals(c("row","col"))
+
+tempdf |> 
+  tabyl(r_male, r_gsp) |> 
+  adorn_percentages(denominator = "row")
+```
+
+Linear probability model: $p(Gossip = 1) = \alpha + \beta Male$
+
+$$
+\alpha=Pr(Gossip =1|Male=0)=0.5806
+$$
+
+$$
+\begin{aligned}
+\beta&=Pr(Gossip =1|Male=1)-Pr(Gossip =1|Male=0)\\
+&=0.4177-0.5806 \\
+&=-0.1629
+\end{aligned}
+$$
+
+Interpretation of $\beta$ : Male respondents have a lower probability of considering themselves like to gossip at times than female respondents by 16.29 percentage points.
+
+Logistic regression model: $logit(\frac{p}{1-p})=\alpha + \beta Male$
+
+Where $p$ is $Pr(Gossip=1)$
+
+$$
+\alpha = log(\frac{342}{247})=0.3254
+$$
+
+$$
+\beta=log(\frac{231}{322})-log(\frac{342}{247})=-0.6576
+$$
+
+Interpretation of $\beta$: Male respondents have a lower log odds of considering themselves like to gossip at times than female respondents by 0.66.
+
+# 5. Religion and Suicide
+
+```{r}
+tempdf <- gss18 |> 
+  select(attend, suicide3) |> 
+  drop_na() |> 
+  mutate(
+    r_weekly = factor(ifelse(attend >= 6, T, F), levels = c(F, T), labels = c("LT Weekly","Weekly")),
+    r_scd = factor(ifelse(suicide3 == 1, T, F), levels = c(F, T), labels = c("No","Yes"))
+  )
+```
+
+In this section, I am interested in the association between people's frequency of attending religion services and their attitudes towards suicide if the people dishonored their families. The variables are defined as below:
+
+$Y$: Whether the respondent agree that a person has the right to end his or her own life if this person dishonored his or her family. 1 if agree, 0 if not.
+
+$X$: Respondent's frequency of attending religious services. 1 if weekly or more, 0 if less than weekly.
+
+```{r}
+tempdf |> 
+  tabyl(r_weekly, r_scd) |> 
+  adorn_totals(c("row","col"))
+
+tempdf |> 
+  tabyl(r_weekly, r_scd) |> 
+  adorn_percentages(denominator = "row")
+```
+
+Linear probability model: $p(Suicide = 1) = \alpha + \beta Weekly$
+
+$$
+\alpha=Pr(Suicide =1|Weekly=0)=0.1500
+$$
+
+$$
+\begin{aligned}
+\beta&=Pr(Suicide =1|Weekly=1)-Pr(Suicide =1|Weekly=0)\\
+&=0.0620-0.1500 \\
+&=-0.0879
+\end{aligned}
+$$
+
+Interpretation of $\beta$ : People who attend the religious services more than weekly have a lower probability of agreeing on suicides because of family dishonor than people who attend religious services less than weekly by 8.79 percentage points.
+
+Logistic regression model: $logit(\frac{p}{1-p})=\alpha + \beta Weekly$
+
+Where $p$ is $Pr(Suicide=1)$
+
+$$
+\alpha = log(\frac{169}{958})=-1.7349
+$$
+
+$$
+\beta=log(\frac{25}{378})-log(\frac{169}{958})=-0.9811
+$$
+
+Interpretation of $\beta$: People who attend the religious services more than weekly have a lower log odds of agreeing on suicides because of family dishonor than people who attend religious services less than weekly by 0.98.
+
+# 6. Education and Belief in God
+
+```{r}
+tempdf <- gss18 |> 
+  select(degree, god) |> 
+  drop_na() |> 
+  mutate(
+    r_gtba = factor(ifelse(degree >= 3, T, F), levels = c(F, T), labels = c("No BA","BA or more")),
+    r_god = factor(ifelse(god == 6, T, F), levels = c(F, T), labels = c("Not so believe","Believe without doubts"))
+  )
+```
+
+In this section, I am interested in the association between people's belief in god and their education level. The variables are defined as below:
+
+$Y$: Whether the respondent believe in god without doubts. 1 if so, 0 if not.
+
+$X$: Whether the respondent have a bachelor's degree or more. 1 if so, 0 if not.
+
+```{r}
+tempdf |> 
+  tabyl(r_gtba, r_god) |> 
+  adorn_totals(c("row","col"))
+
+tempdf |> 
+  tabyl(r_gtba, r_god) |> 
+  adorn_percentages(denominator = "row")
+```
+
+Linear probability model: $p(God = 1) = \alpha + \beta BA$
+
+$$
+\alpha=Pr(God =1|BA=0)=0.5716
+$$
+
+$$
+\begin{aligned}
+\beta&=Pr(God =1|BA=1)-Pr(God =1|BA=0)\\
+&=0.4830-0.5716 \\
+&=-0.0887
+\end{aligned}
+$$
+
+Interpretation of $\beta$ : People who have a bechelor's degree or more have a lower probability of believing in god without any doubts than those who do not have a BA degree by 8.87 percentage points.
+
+Logistic regression model: $logit(\frac{p}{1-p})=\alpha + \beta BA$
+
+Where $p$ is $Pr(God=1)$
+
+$$
+\alpha = log(\frac{922}{691})=0.2884
+$$
+
+$$
+\beta=log(\frac{340}{364})-log(\frac{922}{691})=-0.3566
+$$
+
+Interpretation of $\beta$: People who have a bachelor's degree or more have a lower log odds of believing in god without any doubts than those who do not have a BA degree by 0.36.
+
+# 7. Birthplace and Education
+
+This section will look into the association between US-born and education level. I will cover two education outcomes: whether completed high school or not, and whether having bachelor's degree or not.
+
+```{r}
+tempdf <- gss18 |> 
+  select(degree, born) |> 
+  drop_na() |> 
+  mutate(
+    r_gths = factor(ifelse(degree >= 1, T, F), levels = c(F, T), labels = c("No HS","HS or more")),
+    r_gtba = factor(ifelse(degree >= 3, T, F), levels = c(F, T), labels = c("No BA","BA or more")),
+    r_us = factor(ifelse(born == 1, T, F), levels = c(F, T), labels = c("Not US-born","US-born"))
+  )
+```
+
+## 7.1 High School Diploma
+
+```{r}
+tempdf |> 
+  tabyl(r_us, r_gths) |> 
+  adorn_totals(c("row","col"))
+
+tempdf |> 
+  tabyl(r_us, r_gths) |> 
+  adorn_percentages(denominator = "row")
+```
+
+$Y$: Whether the respondent have high school diploma or not. 1 if so, 0 if not.
+
+$X$: Whether the respondent was born in US. 1 if so, 0 if not.
+
+Linear probability model: $p(HS = 1) = \alpha + \beta USborn$
+
+$$
+\alpha=Pr(HS =1|USborn=0)=0.7450
+$$
+
+$$
+\begin{aligned}
+\beta&=Pr(HS =1|USBorn=1)-Pr(HS =1|USBorn=0)\\
+&=0.9095-0.7450 \\
+&=0.1645
+\end{aligned}
+$$
+
+Interpretation of $\beta$ : People who was born in US have a higher probability to have high school diploma than those who was not born in US by 16.45 percentage points.
+
+Logistic regression model: $logit(\frac{p}{1-p})=\alpha + \beta USBorn$
+
+Where $p$ is $Pr(HS=1)$
+
+$$
+\alpha = log(\frac{225}{77})=1.0723
+$$
+
+$$
+\beta=log(\frac{1860}{185})-log(\frac{225}{77})=1.2357
+$$
+
+Interpretation of $\beta$: People who was born in US have a higher log odds to have high school diploma than those who was not born in US by 1.24.
+
+## 7.2 Bachelor's Degree
+
+```{r}
+tempdf |> 
+  tabyl(r_us, r_gtba) |> 
+  adorn_totals(c("row","col"))
+
+tempdf |> 
+  tabyl(r_us, r_gtba) |> 
+  adorn_percentages(denominator = "row")
+```
+
+$Y$: Whether the respondent have bachelor's degree or not. 1 if so, 0 if not.
+
+$X$: Whether the respondent was born in US. 1 if so, 0 if not.
+
+Linear probability model: $p(BA = 1) = \alpha + \beta USborn$
+
+$$
+\alpha=Pr(BA =1|USborn=0)=0.3079
+$$
+
+$$
+\begin{aligned}
+\beta&=Pr(BA =1|USBorn=1)-Pr(BA =1|USBorn=0)\\
+&=0.3027-0.3079 \\
+&=-0.0053
+\end{aligned}
+$$
+
+Interpretation of $\beta$ : People who was born in US have a lower probability to have BA degree or more than those who was not born in US by 0.53 percentage points.
+
+Logistic regression model: $logit(\frac{p}{1-p})=\alpha + \beta USBorn$
+
+Where $p$ is $Pr(HS=1)$
+
+$$
+\alpha = log(\frac{93}{209})=-0.8097
+$$
+
+$$
+\beta=log(\frac{619}{1426})-log(\frac{93}{209})=-0.0248
+$$
+
+Interpretation of $\beta$: People who was born in US have a lower log odds to have BA degree or more than those who was not born in US by 0.02.
+
+Interesting finding from these two studies in section 7: Whether US-born or not have a strong association with high school diploma, but not a strong one with BA degree. Further information is needed (when the respondent moved to US) to explore the association between education level and birthplace.
+
+# 8. Belief in God and Extra-marital Sex
+
+```{r}
+tempdf <- gss18 |> 
+  select(god, xmarsex) |> 
+  drop_na() |> 
+  mutate(
+    r_exmasex = factor(ifelse(xmarsex == 1, T, F), levels = c(F, T), labels = c("Not always","Always wrong")),
+    r_god = factor(ifelse(god == 6, T, F), levels = c(F, T), labels = c("Not so believe","Believe without doubts"))
+  )
+```
+
+In this section, I am interested in the association between people's belief in god and their attitudes towards extra-marital sex. The variables are defined as below:
+
+$Y$: Whether the respondent believe in god without doubts. 1 if so, 0 if not.
+
+$X$: Whether the respondent always think extra-marital sex wrong. 1 if so, 0 if not.
+
+```{r}
+tempdf |> 
+  tabyl(r_god, r_exmasex) |> 
+  adorn_totals(c("row","col"))
+
+tempdf |> 
+  tabyl(r_god, r_exmasex) |> 
+  adorn_percentages(denominator = "row")
+```
+
+Linear probability model: $p(ExtraMarSex = 1) = \alpha + \beta God$
+
+$$
+\alpha=Pr(ExtraMarSex =1|God=0)=0.5930
+$$
+
+$$
+\begin{aligned}
+\beta&=Pr(ExtraMarSex =1|God=1)-Pr(ExtraMarSex =1|God=0)\\
+&=0.8852-0.5930 \\
+&=0.2922
+\end{aligned}
+$$
+
+Interpretation of $\beta$ : People who was believe in god without any doubts have a higher probability of always considering extra-marital sex as wrong than those who do not believe in god so completely by 29.22 percentage points.
+
+Logistic regression model: $logit(\frac{p}{1-p})=\alpha + \beta God$
+
+Where $p$ is $Pr(ExtraMarSex=1)$
+
+$$
+\alpha = log(\frac{408}{280})=0.3765
+$$
+
+$$
+\beta=log(\frac{748}{97})-log(\frac{408}{280})=1.6662
+$$
+
+Interpretation of $\beta$: People who was believe in god without any doubts have a higher log odds of always considering extra-marital sex as wrong than that of those who do not believe in god so completely by 1.67.
