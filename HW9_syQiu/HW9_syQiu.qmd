@@ -1,0 +1,421 @@
+---
+title: "HW9_syQiu"
+author: "Shuyi Qiu"
+format: html
+editor: visual
+toc: true
+---
+
+Set up dataset and package
+
+```{r}
+#| warning: false
+#| error: false
+library(tidyverse)
+library(gssr)
+library(infer)
+theme_set(theme_light(base_family = "Optima"))
+gss18 <- gss_get_yr(2018) 
+```
+
+# 9.1 `cappun` & `weekly`
+
+```{r}
+d <- gss18 |> 
+  select(attend, polviews, cappun) |> 
+  haven::zap_missing() |> 
+  haven::zap_labels() |> 
+  mutate(
+    weekly = factor(if_else(attend >= 7, 1L, 0L), levels = c(0L, 1L), labels = c("Non-weekly", "Weekly")),
+    conservative = factor(if_else(polviews >= 5, 1L, 0L), levels = c(0L, 1L), labels = c("Non-conservative", "Conservative")),
+    penalty = factor(if_else(cappun == 1, 1L, 0L), levels = c(0L, 1L), labels = c("Oppose","Favor"))
+    ) |> 
+  drop_na() |> 
+  select(penalty, weekly, conservative)
+
+crosstab <- table(d$weekly, d$penalty)
+prop.table(crosstab, margin = 1)
+```
+
+## 9.1.1 2\*2
+
+### Linear Probability Model
+
+As a linear probability model, the relationship between `cappun` ($Y$) and `weekly` ($X$) can be expressed as following:
+
+$$
+Y=\alpha+\beta X
+$$
+
+Based on the contingency table, we can calculate the value of $\alpha$ and $\beta$:
+
+$\alpha$ = `r round(prop.table(crosstab, margin = 1)[1,2],4)`
+
+$\beta$ = `r round(prop.table(crosstab, margin = 1)[2,2]-prop.table(crosstab, margin = 1)[1,2],4)`
+
+The value of $\beta$ indicates that the probability of those who favor the death penalty for those who convicted murder is lower among those who attend the religious services weekly than among those who do not by `r abs(round((prop.table(crosstab, margin = 1)[2,2]-prop.table(crosstab, margin = 1)[1,2])*100,2))` percentage points.
+
+### Logistic Regression Model
+
+As a logistic regression model, the relationship between `cappun` ($Y$) and `weekly` ($X$) can also be expressed using the above model, but the left hand side is the logit.
+
+Based on the contingency table, we can calculate the value of $\alpha$ and $\beta$:
+
+$\alpha$ = `r round(log(crosstab[1,2]/crosstab[1,1]),4)`
+
+$\beta$ = `r round(log(crosstab[2,2]/crosstab[2,1])-log(crosstab[1,2]/crosstab[1,1]),4)`
+
+The value of $\beta$ indicates that those who attend the religious services weekly have a lower log odds of favoring death penalty for murderers than those who do not by `r abs(round(log(crosstab[2,2]/crosstab[2,1])-log(crosstab[1,2]/crosstab[1,1]),2))`
+
+### Bonus
+
+```{r}
+boot_df <- d |> 
+  specify(penalty ~ weekly, success = "Favor") |> 
+  generate(reps = 5000, type = "bootstrap") |> 
+  calculate("diff in props", order = c("Weekly","Non-weekly"))
+
+mean(boot_df$stat)
+sd(boot_df$stat)
+
+ci <- boot_df |> 
+  get_confidence_interval(level = 0.95)
+ci
+
+boot_df |> 
+  visualise() +
+  shade_ci(ci)
+```
+
+The standard error of $\beta$ is `r round(sd(boot_df$stat),4)` , as estimated from the bootstrap simulation. The 95% confidence interval is (`r round(ci,4)`).
+
+## 9.1.2 2\*2\*2
+
+```{r}
+crosstab <- table(d$weekly, d$penalty, d$conservative)
+crosstab
+prop.table(crosstab, margin = c(1, 3))
+```
+
+The relationship between `cappun` ($Y$), `weekly` ($X_1$) and `conservative` ($X_2$) could be written as the following model with interactive term:
+
+$$
+Y = \alpha+\beta_1X_1+\beta_2X_2+\beta_3X_1X_2
+$$
+
+### Linear Probability Model
+
+The left hand side of the model is the conditional probability of $Y = 1$ in the linear probability model.
+
+```{r}
+alpha = prop.table(crosstab, margin = c(1,3))[1,2,1]
+beta1 = prop.table(crosstab, margin = c(1,3))[2,2,1]-alpha
+beta2 = prop.table(crosstab, margin = c(1,3))[1,2,2]-alpha
+beta3 = prop.table(crosstab, margin = c(1,3))[2,2,2]-alpha-beta1-beta2
+```
+
+$\alpha$ = `r round(alpha,4)`
+
+$\beta_1$ = `r round(beta1,4)`
+
+$\beta_2$ = `r round(beta2,4)`
+
+$\beta_3$ = `r round(beta3,4)`
+
+Interpretation of coefficients:
+
+$\beta_1$: attending religious services weekly alone decreases the probability of favoring the penalty for murderers by `r round(beta1*100, 2)` percentage points.
+
+$\beta_2$: being conservative alone increases the probability of favoring the penalty for murderers by `r round(beta2*100, 2)` percentage points.
+
+$\beta_1+\beta_2+\beta_3$: attending religious services weekly as well as being conservative together would increase the probability of favoring the penalty for murderers by `r round((beta1+beta2+beta3)*100,2)` percentage points.
+
+### Logistic Regression Model
+
+The left hand side of the model is the logit of $Y$ in the logistic regression model
+
+```{r}
+alpha = log(crosstab[1,2,1]/crosstab[1,1,1])
+beta1 = log(crosstab[2,2,1]/crosstab[2,1,1])-alpha
+beta2 = log(crosstab[1,2,2]/crosstab[1,1,2])-alpha
+beta3 = log(crosstab[2,2,2]/crosstab[2,1,2])-alpha-beta1-beta2
+```
+
+$\alpha$ = `r round(alpha,4)`
+
+$\beta_1$ = `r round(beta1,4)`
+
+$\beta_2$ = `r round(beta2,4)`
+
+$\beta_3$ = `r round(beta3,4)`
+
+Interpretation of coefficients:
+
+$\beta_1$: attending religious services weekly alone decreases the odds of favoring the penalty for murderers by `r round(exp(beta1), 2)` times.
+
+$\beta_2$: being conservative alone increases the odds of favoring the penalty for murderers by `r round(exp(beta2), 2)` times.
+
+$\beta_1+\beta_2+\beta_3$: attending religious services weekly as well as being conservative together would increase the odds of favoring the penalty for murderers by `r round(exp(beta1+beta2+beta3),2)` times.
+
+### Bonus
+
+```{r}
+boot_df <- d |> 
+  mutate(penalty = as.numeric(penalty) - 1) |> 
+  specify(penalty ~ weekly * conservative) |> 
+  generate(reps = 5000, type = "bootstrap") |> 
+  fit(family = "gaussian")
+
+observed_fit <- d |> 
+  mutate(penalty = as.numeric(penalty) - 1) |> 
+  specify(penalty ~ weekly * conservative) %>%
+  fit(family = "gaussian")
+
+coef_estimate <- boot_df |> 
+  group_by(term) |> 
+  summarise(
+    mean_coef = mean(estimate),
+    sd_coef = sd(estimate)
+  )
+
+ci_df <- get_confidence_interval(
+  boot_df,
+  point_estimate = observed_fit,
+  level = .95
+)
+
+result_df <- coef_estimate |> 
+  left_join(ci_df, by = "term")
+
+result_df
+```
+
+Therefore the standard error of $\beta_{weekly}$ in the linear probability model is `r round(result_df[which(result_df$term == "weeklyWeekly"),c("sd_coef")], 4)`. The confidence interval is (`r round(result_df[which(result_df$term == "weeklyWeekly"),c("lower_ci")],4)`, `r round(result_df[which(result_df$term == "weeklyWeekly"),c("upper_ci")],4)`)
+
+# 9.2 xmarsex \~ married \* sex
+
+The relationship between `exmarsex` ($Y$), `married` ($X_1$) and `female` ($X_2$) could be written as the following model with interactive term:
+
+$$
+Y = \alpha+\beta_1X_1+\beta_2X_2+\beta_3X_1X_2
+$$
+
+### 
+
+```{r}
+d <- gss18 |> 
+  select(marital, sex, xmarsex) |> 
+  haven::zap_missing() |> 
+  haven::zap_labels() |> 
+  mutate(
+    married = factor(if_else(marital == 1, 1L, 0L), levels = c(0L, 1L), labels = c("Not married", "Married")),
+    female = factor(if_else(sex == 2, 1L, 0L), levels = c(0L, 1L), labels = c("Male", "Female")),
+    exmarsex = factor(if_else(xmarsex == 1, 1L, 0L), levels = c(0L, 1L), labels = c("Not always", "Always"))
+    ) |> 
+  drop_na() |> 
+  select(married, female, exmarsex)
+
+crosstab <- table(d$married, d$exmarsex, d$female)
+crosstab
+prop.table(crosstab, margin = c(1, 3))
+```
+
+### Linear Probability Model
+
+The left hand side of the model is the conditional probability of $Y = 1$ in the linear probability model.
+
+```{r}
+alpha = prop.table(crosstab, margin = c(1,3))[1,2,1]
+beta1 = prop.table(crosstab, margin = c(1,3))[2,2,1]-alpha
+beta2 = prop.table(crosstab, margin = c(1,3))[1,2,2]-alpha
+beta3 = prop.table(crosstab, margin = c(1,3))[2,2,2]-alpha-beta1-beta2
+```
+
+$\alpha$ = `r round(alpha,4)`
+
+$\beta_1$ = `r round(beta1,4)`
+
+$\beta_2$ = `r round(beta2,4)`
+
+$\beta_3$ = `r round(beta3,4)`
+
+Interpretation of coefficients:
+
+$\beta_1$: getting married alone increases the probability of always think extra-marital sex wrong by `r round(beta1*100, 2)` percentage points.
+
+$\beta_2$: being female alone increases the probability of always think extra-marital sex wrong by `r round(beta2*100, 2)` percentage points.
+
+$\beta_1+\beta_2+\beta_3$: getting married as well as being female together would increase the probability of always think extra-marital sex wrong by `r round((beta1+beta2+beta3)*100,2)` percentage points.
+
+### Logistic Regression Model
+
+The left hand side of the model is the logit of $Y$ in the logistic regression model
+
+```{r}
+alpha = log(crosstab[1,2,1]/crosstab[1,1,1])
+beta1 = log(crosstab[2,2,1]/crosstab[2,1,1])-alpha
+beta2 = log(crosstab[1,2,2]/crosstab[1,1,2])-alpha
+beta3 = log(crosstab[2,2,2]/crosstab[2,1,2])-alpha-beta1-beta2
+```
+
+$\alpha$ = `r round(alpha,4)`
+
+$\beta_1$ = `r round(beta1,4)`
+
+$\beta_2$ = `r round(beta2,4)`
+
+$\beta_3$ = `r round(beta3,4)`
+
+Interpretation of coefficients:
+
+$\beta_1$: getting married alone increases the odds of always think extra-marital sex wrong by `r round(exp(beta1), 2)` times.
+
+$\beta_2$: being female alone increases the odds of always think extra-marital sex wrong by `r round(exp(beta2), 2)` times.
+
+$\beta_1+\beta_2+\beta_3$: getting married as well as being female together would increase the odds of always think extra-marital sex wrong by by `r round(exp(beta1+beta2+beta3),2)` times.
+
+### Bonus
+
+```{r}
+boot_df <- d |> 
+  mutate(exmarsex = as.numeric(exmarsex) - 1) |> 
+  specify(exmarsex ~  married * female) |> 
+  generate(reps = 5000, type = "bootstrap") |> 
+  fit(family = "gaussian")
+
+observed_fit <- d |> 
+  mutate(exmarsex = as.numeric(exmarsex) - 1) |> 
+  specify(exmarsex ~  married * female) %>%
+  fit(family = "gaussian")
+
+coef_estimate <- boot_df |> 
+  group_by(term) |> 
+  summarise(
+    mean_coef = mean(estimate),
+    sd_coef = sd(estimate)
+  )
+
+ci_df <- get_confidence_interval(
+  boot_df,
+  point_estimate = observed_fit,
+  level = .95
+)
+
+result_df <- coef_estimate |> 
+  left_join(ci_df, by = "term")
+
+result_df
+```
+
+# 9.3 Inter-generational Bachelor's Degree
+
+The relationship between `r_gtba` ($Y$), `f_gtba` ($X_1$) and `m_gtba` ($X_2$) could be written as the following model with interactive term:
+
+$$
+Y = \alpha+\beta_1X_1+\beta_2X_2+\beta_3X_1X_2
+$$
+
+```{r}
+d <- gss18 |> 
+  select(degree, padeg, madeg) |> 
+  haven::zap_missing() |> 
+  haven::zap_labels() |> 
+  mutate(
+    r_gtba = factor(ifelse(degree >= 3, TRUE, FALSE), levels = c(FALSE, TRUE), labels = c("No BA", "BA or more")),
+    f_gtba = factor(ifelse(padeg >= 3, TRUE, FALSE), levels = c(FALSE, TRUE), labels = c("No BA", "BA or more")),
+    m_gtba = factor(ifelse(madeg >= 3, TRUE, FALSE), levels = c(FALSE, TRUE), labels = c("No BA", "BA or more"))
+    ) |> 
+  drop_na() |> 
+  select(r_gtba, f_gtba, m_gtba)
+
+crosstab <- table(father = d$f_gtba, resp = d$r_gtba, mother = d$m_gtba)
+crosstab
+prop.table(crosstab, margin = c(1, 3))
+```
+
+### Linear Probability Model
+
+The left hand side of the model is the conditional probability of $Y = 1$ in the linear probability model.
+
+```{r}
+alpha = prop.table(crosstab, margin = c(1,3))[1,2,1]
+beta1 = prop.table(crosstab, margin = c(1,3))[2,2,1]-alpha
+beta2 = prop.table(crosstab, margin = c(1,3))[1,2,2]-alpha
+beta3 = prop.table(crosstab, margin = c(1,3))[2,2,2]-alpha-beta1-beta2
+```
+
+$\alpha$ = `r round(alpha,4)`
+
+$\beta_1$ = `r round(beta1,4)`
+
+$\beta_2$ = `r round(beta2,4)`
+
+$\beta_3$ = `r round(beta3,4)`
+
+Interpretation of coefficients:
+
+$\beta_1$: father's having bachelor degree increases the probability of child's having bachelor's degree by `r round(beta1*100, 2)` percentage points.
+
+$\beta_2$: mother's having bachelor degree increases the probability of child's having bachelor's degree by `r round(beta2*100, 2)` percentage points.
+
+$\beta_1+\beta_2+\beta_3$: parents' both having bachelor's degree would increase the probability of child's having bachelor's degree by `r round((beta1+beta2+beta3)*100,2)` percentage points.
+
+### Logistic Regression Model
+
+The left hand side of the model is the logit of $Y$ in the logistic regression model
+
+```{r}
+alpha = log(crosstab[1,2,1]/crosstab[1,1,1])
+beta1 = log(crosstab[2,2,1]/crosstab[2,1,1])-alpha
+beta2 = log(crosstab[1,2,2]/crosstab[1,1,2])-alpha
+beta3 = log(crosstab[2,2,2]/crosstab[2,1,2])-alpha-beta1-beta2
+```
+
+$\alpha$ = `r round(alpha,4)`
+
+$\beta_1$ = `r round(beta1,4)`
+
+$\beta_2$ = `r round(beta2,4)`
+
+$\beta_3$ = `r round(beta3,4)`
+
+Interpretation of coefficients:
+
+$\beta_1$: father's having bachelor degree increases the odds of child's having bachelor's degree by `r round(exp(beta1), 2)` times.
+
+$\beta_2$: mother's having bachelor degree increases the odds of child's having bachelor's degree by `r round(exp(beta2), 2)` times.
+
+$\beta_1+\beta_2+\beta_3$: parents' both having bachelor's degree would increase the odds of child's having bachelor's degree by `r round(exp(beta1+beta2+beta3),2)` times.
+
+### Bonus
+
+```{r}
+boot_df <- d |> 
+  mutate(r_gtba = as.numeric(r_gtba) - 1) |> 
+  specify(r_gtba ~  f_gtba * m_gtba) |> 
+  generate(reps = 5000, type = "bootstrap") |> 
+  fit(family = "gaussian")
+
+observed_fit <- d |> 
+  mutate(r_gtba = as.numeric(r_gtba) - 1) |> 
+  specify(r_gtba ~  f_gtba * m_gtba) %>%
+  fit(family = "gaussian")
+
+coef_estimate <- boot_df |> 
+  group_by(term) |> 
+  summarise(
+    mean_coef = mean(estimate),
+    sd_coef = sd(estimate)
+  )
+
+ci_df <- get_confidence_interval(
+  boot_df,
+  point_estimate = observed_fit,
+  level = .95
+)
+
+result_df <- coef_estimate |> 
+  left_join(ci_df, by = "term")
+
+result_df
+```
