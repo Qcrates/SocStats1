@@ -1,0 +1,263 @@
+---
+title: "HW10_syQiu"
+author: "Shuyi Qiu"
+format: html
+editor: visual
+embed-resources: true
+toc: true
+---
+
+# 10.1 Model Estimation
+
+Import package and dataset
+
+```{r}
+#| warning: false
+#| error: false
+library(tidyverse)
+library(modelsummary)
+library(broom)
+library(gt)
+library(gssr)
+library(infer)
+gss18 <- gss_get_yr(2018)
+
+d <- gss18 |> 
+  select(attend, polviews, cappun, degree) |> 
+  haven::zap_missing() |> 
+  mutate(across(!degree, haven::zap_labels)) |> 
+  mutate(degree = haven::as_factor(degree)) |> 
+  mutate(
+    weekly = if_else(attend >= 7, 1L, 0L),
+    polviews = polviews - 4,
+    cappun = if_else(cappun == 1, 1L, 0L),
+    ) |> 
+  mutate(conservative = as.integer(polviews > 0)) |> 
+  drop_na() 
+
+head(d)
+```
+
+## 10.1.1 Grid Search
+
+```{r}
+grid <- expand_grid(
+  alpha = seq(-1, 1, by = 0.02),
+  beta1 = seq(-1, 1, by = 0.02),
+  beta2 = seq(-1, 1, by = 0.02)
+) # Number of rows = (2/0.02 + 1)^3
+
+head(grid)
+
+log_likelihood_cappun <- function(alpha, beta1, beta2) {
+  linpred <- alpha + beta1 * d$conservative + beta2 * d$weekly # created a dataframe using the given alpha, beta1, beta2
+  theta <- exp(linpred)/(1 + exp(linpred))
+  return(sum(dbinom(d$cappun, size = 1, prob = theta, log = TRUE))) # Vector calculation for each line, then sum together
+}
+
+log_likelihood_cappun(0.08, 0.09, 0.11)
+```
+
+Apply to the grid
+
+```{r}
+# for (i in c(1:nrow(grid))){
+#   grid[i,c("ll")] <- log_likelihood_cappun(grid$alpha[i], grid$beta1[i], grid$beta2[i])
+# }
+# grid |> filter(ll == max(ll))
+```
+
+## 10.1.2 `glm()` 
+
+```{r}
+mod <- glm(cappun ~ conservative + weekly, data = d, family = "binomial")
+mod
+logLik(mod)
+# What is null deviance
+nullll <- sum(dbinom(d$cappun, size = 1, prob = mean(d$cappun), log = TRUE))
+nullll * -2
+# Outputs
+summary(mod)
+coef(mod) # Or coefficients(mod)
+# Broom: provide the summary output in data frame format
+broom::tidy(mod)
+broom::glance(mod)
+broom::augment(mod) # predict
+# Predicted probabilities
+augment(mod) |> 
+  distinct(conservative, weekly, .fitted) |> 
+  mutate(prob = plogis(.fitted)) # plogis return e^x/(e^x + 1)
+# model summary
+modelsummary::msummary(list("Model 1" = mod), output = "gt")
+```
+
+# 10.2 Model Comparison
+
+$AIC = D + k * 2$
+
+$BIC = D + k * log(n)$
+
+# 10.3 Exercises
+
+## 10.3.1 `model.matrix()` 
+
+```{r}
+head(model.matrix(cappun ~ polviews + weekly + polviews:weekly, data = d))
+head(model.matrix(cappun ~ polviews * weekly, data = d))
+head(model.matrix(cappun ~ degree, data = d))
+```
+
+The first two formulas are doing the same thing: in addition to the original variables `polviews` and `weekly`, the model also needs to generate an interaction term `polviews:weekly` which equals to the product of `polviews` and `weekly`
+
+The third formula involves a multi-level categorical variable of education attainment, which includes four levels: `less than high school` (the reference group), `high school associate/junior college`, `bachelor's`, `graduate`. The model needs to generate a set of binary variables. The number of binary variables equals to the level of the original categorical variable minus one.
+
+## 10.3.2 Model Comparison
+
+```{r}
+mod1 <- glm(cappun ~ conservative + weekly, data = d, family = "binomial")
+mod2 <- glm(cappun ~ conservative * weekly, data = d, family = "binomial")
+mod3 <- glm(cappun ~ polviews + weekly, data = d, family = "binomial")
+mod4 <- glm(cappun ~ polviews * weekly, data = d, family = "binomial")
+msummary(list(mod1, mod2, mod3, mod4), output = "gt") |> 
+  opt_table_font(font = "Optima")
+```
+
+First we compare model 1 v.s. model 2 and model 3 v.s. model 4 because the difference between the two models in these two pairs are the interaction term.
+
+We can see that model 1 has a lower AIC compared to model 2, which means model 1 is slightly better than model 2, but the difference is very small (0.7). Model 1 also has a lower BIC than model 2, but the difference is also small.
+
+As for model 3 and model 4, we see that model 3 has a higher AIC than model 4, but a lower BIC, while the difference are both not significant enough to make conclusions about which is better.
+
+Then we compare model 1 and model 2 with model 3 and model 4, where these two pairs use different variables in the model. Model 3 and model 4 have a generally lower AIC and BIC than model 1 and model 2, indicating that the combination of `polviews` and `weekly` in the model is better than the combination of binary variable `conservative` and `weekly`.
+
+Interpretation of intercepts:
+
+Model 1: The probability of people who have a non-conservative political view and do not go to religious services weekly to have a favoring attitude towards death penalty for murderers is $\frac{e^{0.35834}}{e^{0.35834}+1}=0.5886$ (with the assumption that political view and frequency of religious service attendance do not interact with each other).
+
+Model 2: The probability of people who have a non-conservative political view and do not go to religious services weekly to have a favoring attitude towards death penalty for murderers is $\frac{e^{0.3409}}{e^{0.3409}+1}=0.5844$ (with the assumption that political view and frequency of religious service attendance interact with each other).
+
+Actually the difference between these two is not large, which is consistent with the comparison of AIC and BIC.
+
+Model 3: The probability of people who have a moderate political view and do not attend religious services weekly to have a favoring attitude towards death penalty for murders is $\frac{e^{0.6658}}{e^{0.6658} + 1}=0.6606$, assuming that political view and frequency of religious service attendance do not interact with each other.
+
+Model 4: The probability of people who have a moderate political view and do not attend religious services weekly to have a favoring attitude towards death penalty for murders is $\frac{e^{0.6771}}{e^{0.6771} + 1}=0.6631$, assuming that political view and frequency of religious service attendance interact with each other.
+
+Predicted probabilities for individuals who are "slightly conservative" and attend religious services weekly =
+
+$$
+\frac{e^{0.67711 + 0.44095 * 1-0.45091-0.13811}}{e^{0.67711 + 0.44095 * 1-0.45091-0.13811}+1}=0.6293
+$$
+
+## 10.3.3 New `polviews`
+
+```{r}
+d <- d |> 
+  mutate(
+    polviews2 = factor(case_when(
+      polviews < 0 ~ "liberal",
+      polviews == 0 ~ "moderate",
+      polviews > 0 ~ "conservative"
+    ))
+  )
+mod1 <- glm(formula = cappun ~ relevel(polviews2, ref = "liberal") + weekly, data = d, family = "binomial")
+mod2 <- glm(formula = cappun ~ relevel(polviews2, ref = "moderate") + weekly, data = d, family = "binomial")
+mod3 <- glm(formula = cappun ~ relevel(polviews2, ref = "conservative") + weekly, data = d, family = "binomial")
+msummary(list(mod1, mod2, mod3), output = "gt") |> 
+  opt_table_font(font = "Optima")
+```
+
+These three models are actually the same model. We see that the coefficients before `weekly` are the same across all three models, indicating that controlling for the same political views, those who go to religious services weekly have a 0.68 times odds to favor death penalties for murderers compared to those who do not go to religious services weekly.
+
+To make it simple, we control `weekly = 0`.
+
+Under this situation, we can see that those who have a liberal political view have a logit probability of -0.124 (model 1) = 0.770 - 0.894 (model 2) = 1.238 - 1.362 (model 3). Therefore the probability for these people to have a favor attitude towards death penalty is $\frac{e^{-0.124}}{e^{-0.124} + 1}=0.4690$.
+
+Similarly, we can see that the coefficient for those who have a conservative attitude is 1.362 - 0.124 (model 1) = 0.468 + 0.770 (model 2) = 1.238 (model 3). Therefore the probability for these conservative people to have a favor attitude towards death penalty is $\frac{e^{1.238}}{e^{1.238} + 1}=0.7752$.
+
+We can see that the coefficient for those who have a moderate attitude is 0.894 - 0.124 (model 1) = 0.770 (model 2) = 1.238 - 0.468 (model 3). Therefore the probability for these conservative people to have a favor attitude towards death penalty is $\frac{e^{0.77}}{e^{0.77} + 1}=0.6835$.
+
+## 10.3.4 Conditional Probabilities Table
+
+```{r}
+saturated <- augment(glm(formula = cappun ~ weekly * polviews2, data = d, family = "binomial")) |> 
+  distinct(weekly, polviews2, .fitted) |> 
+  mutate(prob = plogis(.fitted)) |> 
+  select(-.fitted)
+
+restricted <- augment(glm(formula = cappun ~ weekly + polviews2, data = d, family = "binomial")) |> 
+  distinct(weekly, polviews2, .fitted) |> 
+  mutate(prob = plogis(.fitted)) |> 
+  select(-.fitted)
+
+pred_prob_tb <- saturated |> 
+  left_join(restricted, by = c("weekly", "polviews2"), suffix = c("_saturated","_restricted")) |> 
+  arrange(weekly, factor(polviews2, levels = c("liberal","moderate","conservative")))
+
+pred_prob_tb
+```
+
+## 10.3.5 My own model
+
+```{r}
+df <- gss18 |> 
+  select(marital, sex, xmarsex, mcsds6) |> 
+  haven::zap_missing() |> 
+  haven::zap_labels() |> 
+  mutate(
+    married = factor(if_else(marital == 1, 1L, 0L), levels = c(0L, 1L), labels = c("Not married", "Married")),
+    female = factor(if_else(sex == 2, 1L, 0L), levels = c(0L, 1L), labels = c("Male", "Female")),
+    exmarsex = factor(if_else(xmarsex == 1, 1L, 0L), levels = c(0L, 1L), labels = c("Not always", "Always")),
+    gsp = factor(ifelse(mcsds6 == 1, T, F), levels = c(F, T), labels = c("No","Yes"))
+    ) |> 
+  drop_na() |> 
+  select(married, female, exmarsex, gsp)
+```
+
+Outcome variable `exmarsex`: whether the respondent think extra-marital sex is always wrong.
+
+Exposure variable
+
+-   `married`: Whether the respondent is in marriage or not.
+
+-   `female`: Whether the respondent is female or not
+
+-   `gsp`: Whether the respondent think themselves to like gossip at times
+
+```{r}
+mod1 <- glm(formula = exmarsex ~ married + female, data = df, family = "binomial")
+mod2 <- glm(formula = exmarsex ~ married + female + gsp, data = df, family = "binomial")
+mod3 <- glm(formula = exmarsex ~ married + female * gsp, data = df, family = "binomial")
+mod4 <- glm(formula = exmarsex ~ married * female + gsp, data = df, family = "binomial")
+msummary(list(mod1, mod2, mod3, mod4), output = "gt", statistic = c("p.value")) |> 
+  opt_table_font(font = "Optima")
+```
+
+The first two models without interactive term has a lower AIC and BIC respectively. Model 2 has a higher BIC because it include one more variable `gsp`
+
+There is a positive association between being a female and thinking extra-marital sex always wrong. There is a negative association between liking gossip and thinking extra-marital sex always wrong.
+
+## 10.3.6 Extra
+
+A way to calculate the standard deviations for bootstrap sampling distributions using `infer` package:
+
+```{r}
+boot_df <- d |> 
+  specify(cappun ~ weekly + conservative) |> 
+  generate(reps = 5000, type = "bootstrap") |> 
+  fit(family = "binomial")
+
+result_df <- boot_df |> 
+  group_by(term) |> 
+  summarise(
+    coef_mean = mean(estimate),
+    coef_sd = sd(estimate)
+  )
+
+result_df
+
+summary(glm(formula = cappun ~ weekly + conservative, data = d, family = "binomial"))
+
+
+```
+
+We can see the simulation and the `glm()` function give the same results.
