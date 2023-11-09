@@ -67,7 +67,7 @@ Apply to the grid
 # grid |> filter(ll == max(ll))
 ```
 
-## 10.1.2 `glm()` 
+## 10.1.2 `glm()`
 
 ```{r}
 mod <- glm(cappun ~ conservative + weekly, data = d, family = "binomial")
@@ -99,7 +99,7 @@ $BIC = D + k * log(n)$
 
 # 10.3 Exercises
 
-## 10.3.1 `model.matrix()` 
+## 10.3.1 `model.matrix()`
 
 ```{r}
 head(model.matrix(cappun ~ polviews + weekly + polviews:weekly, data = d))
