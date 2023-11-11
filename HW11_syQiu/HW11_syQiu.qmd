@@ -1,0 +1,163 @@
+---
+title: "HW11_syQiu"
+author: "Shuyi Qiu"
+format: html
+editor: visual
+embed-resources: true
+---
+
+Set-up
+
+```{r}
+#| warning: FALSE
+#| error: FALSE
+library(tidyverse)
+theme_set(theme_light(base_family = "Optima"))
+
+library(modelsummary)
+library(broom)
+library(gt)
+library(performance)
+
+library(gssr)
+gss18 <- gss_get_yr(2018) 
+
+vars <- c(
+  "hompop", "sibs", "numwomen", "nummen", "age", "sex", "race", "attend", "polviews", "degree", 
+  "happy", "sexornt", "premarsx", "condom", "wrkslf", "fefam", "cappun", "padeg", "madeg"
+)
+
+d <- gss18 |> 
+  select(all_of(vars)) |> 
+  haven::zap_missing() |> 
+  ## continuous vars 
+  mutate(across(all_of(vars[1:5]), haven::zap_labels)) |> 
+  ## categorical vars
+  #mutate(across(!vars[1:5], haven::as_factor)) |>
+  mutate(numtot = numwomen + nummen)
+```
+
+# 11.1 Goodness of Fit
+
+## 11.1.1 Model Fit
+
+```{r}
+df <- d |> 
+  mutate(
+    rba = ifelse(degree >= 3, T, F),
+    sibs = as.numeric(sibs)
+    ) |> 
+  select(rba, padeg, madeg, sibs) |> 
+  drop_na()
+
+logit_mod1 <- glm(formula = rba ~ padeg + madeg + sibs, data = df, family = binomial(link = "logit"))
+
+summary(logit_mod1)
+
+performance_hosmer(logit_mod1)
+```
+
+The Hosmer-Lemeshow test compares the observed and predicted proportions within each group. Therefore, a large value of Chi-squared with small p-value shows that there is a significant gap between the observed value and predicted value, indicating a poor fit of the model. A low value of Chi-squared with a large p-value shows that the predicted value and observed value is very close, therefore the model is a good fit.
+
+## 11.1.2 Link Test
+
+```{r}
+df$pred_rba = predict(logit_mod1)
+logit_mod1_link = glm(formula = rba ~ pred_rba, data = df, family = binomial(link = "logit"))
+
+summary(logit_mod1_link)
+```
+
+The $\beta$ coefficient is 1. It means that the model is a good fit.
+
+# 11.2 Poisson Regression
+
+## 11.2.1 Regression & Plot
+
+```{r}
+lambda_value <- c(1, 4, 10, 20, 50)
+draw_num <- 1000
+pois_mat <- matrix(NA, ncol = 2)
+for (i in c(1:length(lambda_value))){
+  temp <- matrix(NA, nrow = draw_num, ncol = 2)
+  temp[,1] <- rep(lambda_value[i], draw_num)
+  temp[,2] <- rpois(n = draw_num, lambda = lambda_value[i])
+  pois_mat <- rbind(pois_mat, temp)
+}
+
+# remove the start value
+pois_mat <- pois_mat[c(2:nrow(pois_mat)),]
+
+pois_df <- as.data.frame(pois_mat)
+colnames(pois_df) <- c("lambda", "value")
+
+# Plot
+ggplot(pois_df |> mutate(lambda = as.factor(lambda)), aes(x = value, group = lambda, fill = lambda)) +
+  geom_bar(alpha = 0.8)
+```
+
+It seems that when $\lambda$ value is larger and larger, the shape of a poisson distribution is more and more close to a normal distribution with a mean equal to $\lambda$
+
+## 11.2.2 `numtot`
+
+```{r}
+df <- d |> 
+  mutate(
+    sex_new = as.factor(ifelse(sex == 1, "male","female")),
+    sex_new = relevel(sex_new, ref = "female"),
+    sexornt_new = as.factor(case_when(
+      sexornt == 1 ~ "homo",
+      sexornt == 2 ~ "bi",
+      sexornt == 3 ~ "str"
+    )),
+    sexornt_new = relevel(sexornt_new, ref = "str"),
+    polviews_new = as.factor(case_when(
+      polviews <= 3 ~ "liberal",
+      polviews == 4 ~ "neutral",
+      polviews >= 5 ~ "conservative"
+    )),
+    polviews_new = relevel(polviews_new, ref = "neutral")
+  ) |> 
+  select(numtot, sex_new, sexornt_new, polviews_new, age, degree, numwomen, nummen) |> 
+  drop_na() |> 
+  filter(numwomen <= 989 & nummen <= 989) # Drop NA
+
+# Model
+numtot_mod1 <- glm(formula = numtot ~ sex_new + sexornt_new, data = df, family = "poisson")
+numtot_mod2 <- glm(formula = numtot ~ sex_new + sexornt_new + age, data = df, family = "poisson")
+numtot_mod3 <- glm(formula = numtot ~ sex_new + sexornt_new + age + degree, data = df, family = "poisson")
+numtot_mod4 <- glm(formula = numtot ~ sex_new : sexornt_new + age + degree, data = df, family = "poisson")
+msummary(list(numtot_mod1, numtot_mod2, numtot_mod3, numtot_mod4), output = "gt") |> 
+  opt_table_font(font = "Optima")
+```
+
+The fourth model with interaction term of sex and sex orientation has the lowest AIC, but the third model without interaction term has the lowest BIC.
+
+Interpretation of $\beta$ before the sex = female : sexornt = homo in model 4: Compared to the reference group (male homosexual), female homosexual people have $e^{-0.797}=45.1$ % fewer sexual partners.
+
+## 11.2.3 `sibs`
+
+```{r}
+df <- d |> 
+  mutate(
+    f_hs = ifelse(padeg == 0, F, T),
+    m_hs = ifelse(madeg == 0, F, T),
+    female = ifelse(sex == 2, T, F),
+    race_new = as.factor(case_when(
+      race == 1 ~ "White",
+      race == 2 ~ "Black",
+      race == 3 ~ "Other"
+    ))
+  ) |>
+  select(sibs, f_hs, m_hs, female, race_new) |> 
+  drop_na()
+sibs_mod1 <- glm(formula = sibs ~ f_hs + m_hs, data = df, family = "poisson")
+sibs_mod2 <- glm(formula = sibs ~ f_hs + m_hs + female, data = df, family = "poisson")
+sibs_mod3 <- glm(formula = sibs ~ f_hs + m_hs + female + race_new, data = df, family = "poisson")
+msummary(list(sibs_mod1, sibs_mod2, sibs_mod3), output = "gt") |> 
+  opt_table_font(font = "Optima")
+```
+
+Model 3 has the lowest AIC and BIC.
+
+The interpretation of $\beta$ before race =white: Compared to the reference group of black people, white people have $e^{-0.437}=64.6$ % fewer siblings.
