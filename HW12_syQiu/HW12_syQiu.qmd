@@ -1,0 +1,297 @@
+---
+title: "HW12_syQiu"
+author: "Shuyi Qiu"
+format: html
+editor: visual
+embed-resources: true
+toc: true
+---
+
+Set-up
+
+```{r}
+#| warning: FALSE
+#| error: FALSE
+library(tidyverse)
+library(ggplot2)
+library(gssr)
+library(bayesrules)
+library(broom)
+gss18 <- gss_get_yr(2018) 
+theme_set(theme_light(base_family = "Optima"))
+```
+
+# 12.1.4 Normal() Part1
+
+Set $\mu=0$
+
+```{r}
+mu = 0
+ggplot() +
+  xlim(-5, 5) +
+  geom_function(fun = \(x) (x - mu)^2) +
+  geom_function(fun = \(x) -(x-mu)^2) +
+  geom_function(fun = \(x) exp(-(x-mu)^2)) +
+  labs(x = "x", y = "f(x)")
+```
+
+Unlike $x^2$ and $-x^2$, the area under $e^{-x^2}$ is limited.
+
+# 12.1.5 Normal() Part2
+
+```{r}
+sqrt(pi) # Square root of pi
+integrate(f = \(x) 1/sqrt(pi) * exp(-x^2), lower = -Inf, upper = Inf) # The area under the curve
+```
+
+We can see that $\sqrt{\pi}$ equals to the integral of $e^{-x^2}$. Therefore, the denominator $\sqrt{\pi}$ is to standardize the function to a distribution which the area under the curve is 1.
+
+Similarly, the density function of normal distribution can be explained as:
+
+$$
+f(x)=\frac{1}{\sqrt{\pi2\sigma^2}}exp(-\frac{(x-\mu)^2}{2\sigma^2})
+$$
+
+-   $\mu$ is the center of the distribution.
+
+-   the denominator in the power number of exponential $2\sigma^2$ is the spread of the curve. The denominator in the total function $\sqrt{\pi2\sigma^2}$ is to adjust the area under the curve to be 1, so that it satisfy the basic condition of a probability distribution
+
+# 12.1.7 Height \~ Sex + Age
+
+Import GSS dataset
+
+$$
+height = \alpha + \beta*male
+$$
+
+```{r}
+df <- gss18 |> 
+  select(height, sex, age) |> 
+  haven::zap_missing() |> 
+  mutate(
+    sex_new = factor(ifelse(sex == 1, "male", "female"))
+  ) |> 
+  drop_na()
+
+mod1 <- lm(formula = height ~ sex_new, data = df)
+summary(mod1)
+```
+
+$\alpha$: The average height of female is 64.41 inches.
+
+$\beta$: The average height of male is `r 64.41+5.70` inches.
+
+Now we add age as a second predictor
+
+$$
+height = \alpha + \beta_1*male + \beta_2*age
+$$
+
+```{r}
+mod2 <- lm(formula = height ~ sex_new + age, data = df)
+summary(mod2)
+```
+
+$\alpha$: The intercept is the average height of female who was at the age of 0, which is impossible. Therefore we do not interpret this.
+
+$\beta_1$: The average height of male is higher than female by 5.71 inches.
+
+$\beta_2$: For every additional year of age, the height will be lower by -0.001 inches.
+
+# 12.1.8 Inc \~ Age
+
+$$
+coninc_i=\beta_0 + \beta_1age_i + \beta_2age_i^2
+$$
+
+```{r}
+df <- gss18 |> 
+  select(coninc, age) |> 
+  mutate(
+    age_sq = age^2
+  ) |> 
+  drop_na()
+
+mod3 <- lm(formula = coninc ~ age + age_sq, data = df)
+summary(mod3)
+```
+
+$\beta_0$ here is the average inflation-adjusted family income when the respondent is at the age of 0. However this does not make much sense to measure the income at the age of 0, so it does not have actual interpretation here.
+
+Predict for the age from 18 to 85:
+
+```{r}
+pred_df <- data.frame(age = c(18:85)) |> 
+  mutate(age_sq = age^2)
+pred_df$inc_pred <- predict(mod3, pred_df)
+ggplot(pred_df, aes(x = age, y = inc_pred)) +
+  geom_line()
+```
+
+# 12.1.9 Transformation
+
+```{r}
+df <- df |> 
+  mutate(
+    age_centered = age - mean(age, na.rm = TRUE),
+    age_centered_sq = age_centered^2
+    )
+
+mod4 <- lm(formula = coninc ~ age_centered + age_centered_sq, data = df)
+summary(mod4)
+```
+
+The coefficient $\beta_0$ (intercept) and $\beta_1$ (the coefficient before `age`) have both changed, but $\beta_2$ (the coefficient before the squared term) does not change. Besides, the standard error of the coefficient before the squared term also remains the same, thus t-value of that coefficient is also the same.
+
+$\beta_0$ here is the average income of people at the mean age.
+
+# 12.1.10 Standardize
+
+```{r}
+df <- df |> 
+  mutate(
+    age_standard = (age - mean(age, na.rm = TRUE))/sd(age, na.rm = TRUE),
+    age_standard_sq = age_standard^2
+    )
+
+mod5 <- lm(formula = coninc ~ age_standard + age_standard_sq, data = df)
+summary(mod5)
+```
+
+Compared to the centered model, the intercept $\beta_0$ remains the same, while $\beta_1$ and $\beta_2$ changed. However, we can see that the t-values all remain the same.
+
+$\beta_0$ here is still the average income of people at the mean age.
+
+Instead of interpreting $\beta_1$ and $\beta_2$ separately by their effect size, it would make more sense to interpret them together by the shape of curve it would show. I did the prediction plot here:
+
+```{r}
+pred_df <- pred_df |> 
+  mutate(
+    age_standard = (age - mean(age, na.rm = TRUE))/sd(age, na.rm = TRUE),
+    age_standard_sq = age_standard^2
+  )
+
+pred_df$inc_pred_standard <- predict(mod5, pred_df)
+ggplot(pred_df, aes(x = age_standard, y = inc_pred_standard)) +
+  geom_line()
+```
+
+This actually can show the relationship between standardized age and income: Before the peak point (which was a little more than the mean age), the income will increase as age grows. However, after the peak point, income will decrease as age grows. The turning point equals to $-\frac{\beta_1}{2\beta_2}$
+
+# 12.1.11 Inc \~ Married
+
+$$
+coninc=\beta_0+\beta_1married
+$$
+
+```{r}
+df <- gss18 |> 
+  select(marital, coninc, sex) |> 
+  mutate(
+    coninc = haven::zap_label(coninc),
+    sex = haven::as_factor(sex),
+    marital = haven::as_factor(marital)
+  ) |> 
+  drop_na() |> 
+  mutate(
+    married_new = if_else(marital == "married", T, F),
+    male = factor(ifelse(sex == "male", T, F))
+    )   
+
+df |> 
+  group_by(married_new) |> 
+  summarize(
+    avg_coninc = mean(coninc, na.rm = TRUE), 
+    sd = sd(coninc, na.rm = TRUE),
+    n = n()
+  ) |> 
+  mutate(std_error = sd / n())
+
+mod6 <- lm(formula = coninc ~ married_new, data = df)
+summary(mod6)
+```
+
+Compared with the `dplyr` table, I can find:
+
+-   The value of intercept $\beta_0$ is equal to the average income of unmarried people (`married = 0`). The value of $\beta_1$ is equal to the average income of married people less the average income of unmarried 67492-36818 = 30674.
+
+-   The standard error of the coefficient:
+
+$$
+\begin{align}
+se(\bar{x_1}-\bar{x_2})&=\sqrt{\frac{\sigma_1^2}{n_1}+\frac{\sigma_2^2}{n_2}}\\
+&=\sqrt{\frac{34643^2}{1229}+\frac{45378^2}{923}}\\
+&=1791
+\end{align}
+$$
+
+Which is very close to the standard error 1725 presented in the regression table.
+
+# 12.1.12 Interactions
+
+```{r}
+df |> 
+  group_by(male, married_new) |> 
+  summarize(coninc = mean(coninc, na.rm = TRUE))
+```
+
+$$
+coninc = \beta_0+\beta_1male_i+\beta_2married_i+\beta_3male_i\times married_i
+$$
+
+| male | married | `coninc` | regression output                 |
+|------|---------|----------|-----------------------------------|
+| 0    | 0       | 33560.78 | $\beta_0$                         |
+| 0    | 1       | 66759.76 | $\beta_0+\beta_2$                 |
+| 1    | 0       | 41014.66 | $\beta_0+\beta_1$                 |
+| 1    | 1       | 68292.14 | $\beta_0+\beta_1+\beta_2+\beta_3$ |
+
+# 12.1.13 Bike ride
+
+```{r}
+data(bikes, package = "bayesrules")
+str(bikes)
+df <- bikes |> 
+  mutate(
+    windspeed_centered = windspeed - mean(windspeed, na.rm = T),
+    temp_feel_centered = temp_feel - mean(temp_feel, na.rm = T)
+  )
+
+ mod7 <- lm(formula = rides ~ windspeed_centered + weekend + temp_feel_centered, data = df)
+ summary(mod7)
+```
+
+If the temperature and wind speed are at their average level, the expected ridership for a weekend day would be 3683.44 - 713.58=2969.86. The expected ridership for a weekday would be 3683.44.
+
+# 12.1.14 Poisson model
+
+```{r}
+mod8 <- glm(formula = rides ~ windspeed_centered + weekend + temp_feel_centered, data = df, family = poisson (link = "log"))
+
+exp(tidy(mod8)[1,2])
+exp(tidy(mod8)[1,2]+tidy(mod8)[3,2])
+```
+
+Based on the poisson model, if the temperature and the wind speed are average, the expected ridership for a weekend day would be 2857.84, while the expected ridership for a week day would be 3549. The result is close to the normal linear model, but still have some gap.
+
+# 12.1.15 Model fit
+
+```{r}
+mod_normal <- glm(rides ~ windspeed + temp_feel + weekend, data = bikes, family = "gaussian")
+bikes$resid <- residuals(mod_normal)
+
+bikes |> 
+  ggplot(aes(date, resid)) + 
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") + 
+  geom_point(
+    data = filter(bikes, abs(resid) == max(abs(resid))),
+    color = "red", shape = 21, size = 3
+  )
+
+data
+```
+
+The plot shows that the residuals are not symmetrically distributed around 0, i.e. it does not satisfy normality. It seems that there is an increasing trend for residuals along the date axis.
+
+The outlier residual was on 2012-10-29, when there was Hurricane Sandy. That is why the bikeshare ridership is over-estimated so much by the model.
