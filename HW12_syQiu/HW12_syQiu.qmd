@@ -295,3 +295,5 @@ data
 The plot shows that the residuals are not symmetrically distributed around 0, i.e. it does not satisfy normality. It seems that there is an increasing trend for residuals along the date axis.
 
 The outlier residual was on 2012-10-29, when there was Hurricane Sandy. That is why the bikeshare ridership is over-estimated so much by the model.
+
+Check git account change
